@@ -8,20 +8,25 @@ import { HostelBlockSummary, HostelService } from '../../core/services/hostel.se
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <div class="page">
+    <div class="page animate-fade-in-up">
       <!-- Hero -->
       <section class="hero-card">
         <div class="eyebrow">🔍 Marketplace</div>
         <h1>Find Your Perfect Hostel</h1>
         <p>Browse approved blocks with smart filters. Each listing routes into a detailed view with application flow.</p>
+        <div class="blob blob-1" style="width:300px;top:-50px;left:-50px;"></div>
+        <div class="blob blob-2" style="width:250px;bottom:-50px;right:-50px;"></div>
       </section>
 
       <!-- Filter card -->
-      <section class="card">
+      <section class="card glass-panel" style="padding: 28px;">
         <div class="grid three" style="margin-bottom:20px">
           <div class="field">
             <label>Location</label>
-            <input [(ngModel)]="location" placeholder="Mumbai, Delhi, Jaipur…">
+            <select [(ngModel)]="location">
+              <option value="">All Regions</option>
+              <option *ngFor="let loc of locationOptions" [value]="loc">{{ loc }}</option>
+            </select>
           </div>
           <div class="field">
             <label>Residency type</label>
@@ -64,19 +69,20 @@ import { HostelBlockSummary, HostelService } from '../../core/services/hostel.se
       </div>
 
       <!-- Loading -->
-      <div class="loading-state" *ngIf="loading">
+      <div class="loading-state glass-panel" *ngIf="loading" style="max-width:400px;margin:32px auto;">
         <div class="spinner"></div>
-        <p>Fetching hostel listings…</p>
+        <p>Fetching premium hostel listings…</p>
       </div>
 
       <!-- Grid -->
-      <section class="cards-grid" *ngIf="!loading && hostels.length">
-        <article class="listing-card" *ngFor="let hostel of hostels">
+      <section class="cards-grid animate-stagger" *ngIf="!loading && hostels.length">
+        <article class="listing-card" *ngFor="let hostel of hostels" style="position:relative;overflow:hidden;border:none;">
           <div style="position:relative">
-            <img [src]="hostel.images[0] || fallbackImage" [alt]="hostel.blockName">
+            <img [src]="hostel.images[0] || fallbackImage" [alt]="hostel.blockName" loading="lazy">
             <div style="position:absolute;top:12px;left:12px;display:flex;gap:6px">
               <span class="badge">{{ hostel.type }}</span>
-              <span class="badge secondary">{{ hostel.availableRooms }} free</span>
+              <span class="badge secondary">{{ hostel.category || 'Standard' }}</span>
+              <span class="badge" style="background:var(--surface);color:var(--text)">{{ hostel.availableRooms }} free</span>
             </div>
           </div>
           <div>
@@ -114,8 +120,9 @@ import { HostelBlockSummary, HostelService } from '../../core/services/hostel.se
 export class HostelListPageComponent {
   private readonly hostelService = inject(HostelService);
 
-  readonly fallbackImage = 'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=900&q=80';
+  readonly fallbackImage = 'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?auto=format&fit=crop&w=1200&q=80';
   readonly typeOptions = ['Boys', 'Girls', 'Co-ed'];
+  readonly locationOptions = ['North Campus', 'South Campus', 'East Campus', 'West Campus', 'Off-Campus'];
   readonly facilityOptions = ['WiFi', 'Gym', 'Library', 'Mess', 'Laundry', 'Sports'];
 
   hostels: HostelBlockSummary[] = [];

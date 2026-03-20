@@ -81,6 +81,7 @@ public class AdminHostelService {
                 rs.getString("location"),
                 getNullableBigDecimal(rs, "rating"),
                 defaultApprovalStatus(rs.getString("approval_status")),
+                rs.getString("category"),
                 new AdminHostelSummaryDto.WardenInfoDto(
                         defaultString(rs.getString("warden_name"), "Unassigned"),
                         defaultString(rs.getString("warden_email"), "n/a")

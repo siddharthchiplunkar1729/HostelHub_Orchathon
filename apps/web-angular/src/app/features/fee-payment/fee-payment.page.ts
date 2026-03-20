@@ -12,9 +12,8 @@ import { StudentService } from '../../core/services/student.service';
       <section class="hero-card">
         <div class="eyebrow">Fee payment</div>
         <h1>Complete the payment step that unlocks dashboard access.</h1>
-        <p>
-          The old React app used a dedicated fee-payment route. This Angular version now preserves that journey
-          and calls the migrated Spring Boot endpoint when a student profile is available.
+        <p class="muted">
+          Complete your fee-payment process securely below.
         </p>
       </section>
 

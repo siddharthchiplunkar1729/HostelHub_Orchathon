@@ -16,8 +16,8 @@ import { HostelBlockDetail, HostelService } from '../../core/services/hostel.ser
         <p>{{ hostel.description || 'Verified student accommodation with managed occupancy, facilities, and reviews.' }}</p>
         <div class="actions-row">
           <a class="btn ghost" routerLink="/search">Back to search</a>
-          <button class="btn" type="button" (click)="apply()" [disabled]="applying || hostel.availableRooms < 1">
-            {{ applying ? 'Applying...' : hostel.availableRooms < 1 ? 'Currently full' : 'Apply for this hostel' }}
+          <button class="btn" type="button" (click)="bookHostel()" [disabled]="hostel.availableRooms < 1">
+            {{ hostel.availableRooms < 1 ? 'Currently full' : 'Book this hostel' }}
           </button>
         </div>
         <p class="muted" *ngIf="message">{{ message }}</p>
@@ -96,11 +96,10 @@ import { HostelBlockDetail, HostelService } from '../../core/services/hostel.ser
           </section>
 
           <section class="card">
-            <h3>Booking journey</h3>
-            <p class="muted">The React flow had booking and fee-payment steps after hostel selection. Those routes are now wired in Angular too.</p>
+            <h3>Apply for Admission</h3>
+            <p class="muted">Submit your application now. If approved, please visit the hostel physically within 12 hours to complete fee payment.</p>
             <div class="actions-row">
-              <a class="btn ghost" routerLink="/booking">Open booking</a>
-              <a class="btn ghost" routerLink="/fee-payment">Fee payment</a>
+              <a class="btn" (click)="bookHostel()" style="cursor: pointer; width: 100%; justify-content: center;">Apply to Hostel</a>
             </div>
           </section>
         </aside>
@@ -125,7 +124,6 @@ export class HostelDetailPageComponent {
 
   hostel: HostelBlockDetail | null = null;
   loading = true;
-  applying = false;
   message = '';
 
   constructor() {
@@ -150,37 +148,25 @@ export class HostelDetailPageComponent {
     });
   }
 
-  apply(): void {
-    if (!this.hostel) {
-      return;
-    }
-
+  bookHostel(): void {
+    if (!this.hostel) return;
+    
     const user = this.authService.currentUser();
     if (!user) {
-      this.router.navigate(['/auth/login'], { queryParams: { returnUrl: `/hostels/${this.hostel._id}` } });
+      this.router.navigate(['/auth/login'], { queryParams: { returnUrl: `/booking`, hostelId: this.hostel._id, blockName: this.hostel.blockName } });
       return;
     }
 
     if (user.role !== 'Student') {
-      this.message = 'Only students can submit hostel applications.';
+      this.message = 'Only students can book hostels.';
       return;
     }
 
-    this.applying = true;
-    this.message = '';
-
-    this.applicationsService.apply(this.hostel._id, {
-      preferredRoomType: 'Double Share',
-      moveInDate: new Date().toISOString()
-    }).subscribe({
-      next: (response) => {
-        this.message = response.message;
-        this.applying = false;
-      },
-      error: (error) => {
-        this.message = error.error?.error ?? 'Could not submit the application.';
-        this.applying = false;
-      }
+    this.router.navigate(['/booking'], { 
+      queryParams: { 
+        hostelId: this.hostel._id,
+        blockName: this.hostel.blockName
+      } 
     });
   }
 }

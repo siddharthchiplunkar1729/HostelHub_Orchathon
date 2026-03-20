@@ -73,6 +73,9 @@ public class HostelBlockEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "category")
+    private String category;
+
     @PrePersist
     void onCreate() {
         if (id == null) {
@@ -218,5 +221,13 @@ public class HostelBlockEntity {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 }

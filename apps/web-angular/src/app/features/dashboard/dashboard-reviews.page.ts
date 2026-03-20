@@ -12,8 +12,7 @@ import { ApplicationSummary, ApplicationsService } from '../../core/services/app
         <div class="eyebrow">Reviews and feedback</div>
         <h1>Track your applications before adding reviews.</h1>
         <p>
-          The old React app exposed a dashboard reviews route. In the Angular migration, this page anchors
-          that route and points students toward the hostel blocks they can review once admission is complete.
+          Manage and review the hostel blocks you are admitted to.
         </p>
       </section>
 

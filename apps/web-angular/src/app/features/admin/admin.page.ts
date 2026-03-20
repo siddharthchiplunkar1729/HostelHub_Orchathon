@@ -1,12 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { AdminHostelSummary, HostelService } from '../../core/services/hostel.service';
+import { AdminService } from '../../core/services/admin.service';
 import { RouterLink } from '@angular/router';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterLink],
   template: `
     <div class="page">
       <!-- Admin header bar -->
@@ -65,6 +66,12 @@ import { RouterLink } from '@angular/router';
             <span class="search-icon">🔍</span>
             <input type="text" [(ngModel)]="searchQuery" placeholder="Search by block name or warden…">
           </div>
+          <div class="field" style="min-width:180px">
+            <select [(ngModel)]="selectedLocation" style="padding:10px 14px;border-radius:var(--radius-full)">
+              <option value="">All Regions</option>
+              <option *ngFor="let loc of locationOptions" [value]="loc">{{ loc }}</option>
+            </select>
+          </div>
           <div class="filter-tabs">
             <button *ngFor="let t of filterOptions"
               class="filter-tab" [class.active]="activeFilter === t"
@@ -97,7 +104,7 @@ import { RouterLink } from '@angular/router';
             </div>
             <div class="hostel-stat">
               <div class="muted">Rating</div>
-              <strong>⭐ {{ hostel.rating?.toFixed(1) || '4.5' }}</strong>
+              <strong>⭐ {{ hostel.rating.toFixed(1) }}</strong>
             </div>
           </div>
 
@@ -114,6 +121,41 @@ import { RouterLink } from '@angular/router';
               {{ hostel.approvalStatus }}
             </span>
             <a class="btn sm ghost" [routerLink]="['/hostels', hostel._id]">View</a>
+            <button class="btn sm" *ngIf="hostel.approvalStatus === 'Pending'" type="button" (click)="toggleApprovalForm(hostel._id)">
+              {{ expandedId === hostel._id ? 'Cancel' : 'Review' }}
+            </button>
+          </div>
+
+          <!-- Approval form (expanded) -->
+          <div *ngIf="expandedId === hostel._id && hostel.approvalStatus === 'Pending'" class="approval-form">
+            <div class="form-divider"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+              <button
+                type="button"
+                class="decision-btn approve"
+                [class.active]="selectedDecision === 'Approved'"
+                (click)="selectedDecision = 'Approved'">
+                ✅ Approve
+              </button>
+              <button
+                type="button"
+                class="decision-btn reject"
+                [class.active]="selectedDecision === 'Rejected'"
+                (click)="selectedDecision = 'Rejected'">
+                ❌ Reject
+              </button>
+            </div>
+            <textarea
+              [(ngModel)]="approvalComments"
+              placeholder="Add remarks about this decision…"
+              style="width:100%;min-height:80px;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:inherit;font-size:0.875rem;margin-bottom:12px">
+            </textarea>
+            <div style="display:flex;gap:8px">
+              <button class="btn sm" type="button" (click)="submitApproval(hostel)" [disabled]="!selectedDecision || submitting">
+                {{ submitting ? 'Submitting...' : 'Submit Decision' }}
+              </button>
+              <button class="btn sm ghost" type="button" (click)="toggleApprovalForm(null)">Cancel</button>
+            </div>
           </div>
         </article>
       </section>
@@ -151,17 +193,40 @@ import { RouterLink } from '@angular/router';
     .hostel-stat .muted { font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em; }
     .hostel-stat strong { font-size:1.1rem;font-weight:900;display:block;margin-top:2px; }
     .hostel-admin-warden { display:flex;align-items:center;gap:10px; }
-    .hostel-admin-actions { display:flex;align-items:center;gap:10px;margin-left:auto; }
+    .hostel-admin-actions { display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap; }
+
+    .form-divider { height:1px;background:var(--border);margin:16px 0; }
+
+    .approval-form {
+      margin-top:16px;padding:16px;background:var(--surface-alt);border-radius:var(--radius-sm);
+    }
+
+    .decision-btn {
+      padding:12px;border:2px solid var(--border);border-radius:var(--radius-sm);
+      background:white;cursor:pointer;font-weight:600;font-size:0.9rem;
+      transition:all 0.2s;
+    }
+    .decision-btn:hover { border-color:var(--primary);background:var(--primary-light); }
+    .decision-btn.approve.active { border-color:var(--success);background:var(--success-light);color:var(--success); }
+    .decision-btn.reject.active { border-color:var(--danger);background:var(--danger-light);color:var(--danger); }
   `]
 })
 export class AdminPageComponent {
   private readonly hostelService = inject(HostelService);
+  private readonly adminService = inject(AdminService);
 
   hostels: AdminHostelSummary[] = [];
   loading = true;
   searchQuery = '';
   activeFilter = 'All';
+  expandedId: string | null = null;
+  selectedDecision: 'Approved' | 'Rejected' | null = null;
+  approvalComments = '';
+  submitting = false;
+  message = '';
+  selectedLocation = '';
   readonly filterOptions = ['All', 'Pending', 'Approved', 'Rejected'];
+  readonly locationOptions = ['North Campus', 'South Campus', 'East Campus', 'West Campus', 'Off-Campus'];
 
   get pending()  { return this.hostels.filter(h => h.approvalStatus === 'Pending').length; }
   get approved() { return this.hostels.filter(h => h.approvalStatus === 'Approved').length; }
@@ -169,9 +234,10 @@ export class AdminPageComponent {
   get filteredHostels() {
     return this.hostels.filter(h => {
       const matchFilter = this.activeFilter === 'All' || h.approvalStatus === this.activeFilter;
+      const matchLocation = !this.selectedLocation || h.location === this.selectedLocation;
       const q = this.searchQuery.toLowerCase();
       const matchSearch = !q || h.blockName.toLowerCase().includes(q) || h.wardenInfo.name.toLowerCase().includes(q);
-      return matchFilter && matchSearch;
+      return matchFilter && matchLocation && matchSearch;
     });
   }
 
@@ -179,6 +245,37 @@ export class AdminPageComponent {
     this.hostelService.getAdminHostels().subscribe({
       next: (data) => { this.hostels = data; this.loading = false; },
       error: ()   => { this.hostels = [];  this.loading = false; }
+    });
+  }
+
+  toggleApprovalForm(id: string | null): void {
+    this.expandedId = this.expandedId === id ? null : id;
+    if (id === null) {
+      this.selectedDecision = null;
+      this.approvalComments = '';
+    }
+  }
+
+  submitApproval(hostel: AdminHostelSummary): void {
+    if (!this.selectedDecision) {
+      this.message = 'Please select a decision.';
+      return;
+    }
+
+    this.submitting = true;
+    this.adminService.approveHostelListing(hostel._id, this.selectedDecision, this.approvalComments).subscribe({
+      next: (res) => {
+        (hostel as any).approvalStatus = this.selectedDecision;
+        this.expandedId = null;
+        this.message = `Hostel ${this.selectedDecision?.toLowerCase()}. Decision submitted successfully.`;
+        this.submitting = false;
+        this.selectedDecision = null;
+        this.approvalComments = '';
+      },
+      error: (err) => {
+        this.message = err.error?.error || 'Failed to submit decision.';
+        this.submitting = false;
+      }
     });
   }
 }

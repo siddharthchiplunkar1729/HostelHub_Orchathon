@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
   standalone: true,
   imports: [RouterLink],
   template: `
-    <div class="page">
+    <div class="page animate-fade-in-up">
 
       <!-- ── Hero ── -->
       <section class="home-hero">
@@ -30,12 +30,12 @@ import { RouterLink } from '@angular/router';
           </div>
 
           <!-- Social proof -->
-          <div class="social-proof">
+          <div class="social-proof animate-fade-in-up" style="animation-delay: 0.2s;">
             <div class="avatar-stack">
-              <div class="avatar" style="background: linear-gradient(135deg, #1d4ed8, #7c3aed);">S</div>
-              <div class="avatar" style="background: linear-gradient(135deg, #0f766e, #1d4ed8);">A</div>
-              <div class="avatar" style="background: linear-gradient(135deg, #f59e0b, #ef4444);">R</div>
-              <div class="avatar" style="background: linear-gradient(135deg, #7c3aed, #ec4899);">M</div>
+              <div class="avatar" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); border: 3px solid rgba(255,255,255,0.4);">S</div>
+              <div class="avatar" style="background: linear-gradient(135deg, #10b981, #3b82f6); border: 3px solid rgba(255,255,255,0.4);">A</div>
+              <div class="avatar" style="background: linear-gradient(135deg, #f59e0b, #ef4444); border: 3px solid rgba(255,255,255,0.4);">R</div>
+              <div class="avatar" style="background: linear-gradient(135deg, #8b5cf6, #ec4899); border: 3px solid rgba(255,255,255,0.4);">M</div>
             </div>
             <div class="social-proof-text">
               <strong>2,400+</strong> Students found their<br>perfect room this semester
@@ -78,7 +78,7 @@ import { RouterLink } from '@angular/router';
           </h2>
           <p class="muted">Three steps to your elite campus residence.</p>
         </div>
-        <div class="grid three">
+        <div class="grid three animate-stagger">
           <div class="step-card">
             <div class="step-icon" style="background:var(--primary)">🔍</div>
             <h3>Find &amp; Compare</h3>
@@ -97,23 +97,6 @@ import { RouterLink } from '@angular/router';
         </div>
       </section>
 
-      <!-- ── Quick links ── -->
-      <section class="card">
-        <div class="section-header">
-          <div>
-            <h2>Move through the app faster</h2>
-            <p class="muted">The most-visited routes in one place.</p>
-          </div>
-        </div>
-        <div class="chip-row">
-          <a class="chip active" routerLink="/search">Search</a>
-          <a class="chip" routerLink="/applications">Applications</a>
-          <a class="chip" routerLink="/notices">Notices</a>
-          <a class="chip" routerLink="/mess-menu">Mess Menu</a>
-          <a class="chip" routerLink="/communities">Communities</a>
-          <a class="chip" routerLink="/profile">Profile</a>
-        </div>
-      </section>
 
       <!-- ── Quality strip ── -->
       <section class="quality-strip">
@@ -135,7 +118,7 @@ import { RouterLink } from '@angular/router';
       position: relative;
       padding: 64px 48px;
       border-radius: var(--radius-2xl);
-      background: linear-gradient(135deg, #0c1f6e 0%, #1d4ed8 45%, #0c856f 100%);
+      background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 45%, #059669 100%);
       color: white;
       overflow: hidden;
       box-shadow: 0 24px 72px rgba(29,78,216,0.28);
@@ -160,7 +143,7 @@ import { RouterLink } from '@angular/router';
       margin: 0 0 20px;
     }
     .gradient-text {
-      background: linear-gradient(90deg, #7dd3fc, #a5f3fc, #6ee7b7);
+      background: linear-gradient(90deg, #38bdf8, #a5f3fc, #34d399);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -188,13 +171,14 @@ import { RouterLink } from '@angular/router';
     /* Float card */
     .hero-float-card {
       position:absolute;bottom:32px;right:32px;
-      background:rgba(255,255,255,0.95);
-      backdrop-filter:blur(12px);
+      background:rgba(255,255,255,0.7);
+      backdrop-filter:blur(24px) saturate(200%);
+      -webkit-backdrop-filter:blur(24px) saturate(200%);
       padding:20px 24px;
       border-radius:24px;
       display:flex;align-items:center;gap:16px;
       box-shadow:0 16px 40px rgba(0,0,0,0.15);
-      border:1px solid rgba(255,255,255,0.8);
+      border:1px solid rgba(255,255,255,1);
     }
     .hero-float-icon {
       width:44px;height:44px;border-radius:14px;

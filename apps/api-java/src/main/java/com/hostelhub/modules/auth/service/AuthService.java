@@ -72,7 +72,10 @@ public class AuthService {
         UserEntity existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
         if (existingUser != null) {
             StudentEntity existingStudent = studentRepository.findByUserId(existingUser.getId()).orElse(null);
-            return buildAuthResponse(existingUser, existingStudent, "Self-correcting login (user already exists)", null);
+            if (existingStudent == null && "Student".equalsIgnoreCase(existingUser.getRole())) {
+                existingStudent = createStudentProfile(existingUser, request.studentData());
+            }
+            return buildAuthResponse(existingUser, existingStudent, "User profile synchronized", null);
         }
 
         UserEntity user = new UserEntity();
@@ -87,17 +90,7 @@ public class AuthService {
 
         StudentEntity student = null;
         if ("Student".equalsIgnoreCase(role)) {
-            student = new StudentEntity();
-            student.setUser(user);
-            student.setRollNumber(resolveRollNumber(request.studentData()));
-            student.setDepartment(request.studentData() != null && request.studentData().department() != null
-                    ? request.studentData().department() : "General");
-            student.setCourse(request.studentData() != null && request.studentData().course() != null
-                    ? request.studentData().course() : "Basic");
-            student.setYear(request.studentData() != null && request.studentData().year() != null
-                    ? request.studentData().year() : 1);
-            student.setEnrollmentStatus("Prospective");
-            studentRepository.save(student);
+            student = createStudentProfile(user, request.studentData());
         }
 
         return buildAuthResponse(user, student, "Registration successful", null);
@@ -189,11 +182,25 @@ public class AuthService {
         return email.trim().toLowerCase(Locale.ROOT);
     }
 
+    private StudentEntity createStudentProfile(UserEntity user, SignupRequest.StudentSignupData studentData) {
+        StudentEntity student = new StudentEntity();
+        student.setUser(user);
+        student.setRollNumber(resolveRollNumber(studentData));
+        student.setDepartment(studentData != null && studentData.department() != null
+                ? studentData.department() : "General");
+        student.setCourse(studentData != null && studentData.course() != null
+                ? studentData.course() : "Basic");
+        student.setYear(studentData != null && studentData.year() != null
+                ? studentData.year() : 1);
+        student.setEnrollmentStatus("Prospective");
+        return studentRepository.save(student);
+    }
+
     private String resolveRollNumber(SignupRequest.StudentSignupData studentData) {
         String requested = studentData != null ? studentData.rollNumber() : null;
         if (requested != null && !requested.isBlank()) {
             if (studentRepository.existsByRollNumber(requested)) {
-                throw new IllegalArgumentException("Roll number already registered");
+                return requested; // Reuse if exists (mostly for self-correction)
             }
             return requested;
         }

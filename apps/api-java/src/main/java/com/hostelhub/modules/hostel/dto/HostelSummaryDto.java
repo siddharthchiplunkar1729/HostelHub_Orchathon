@@ -18,6 +18,7 @@ public record HostelSummaryDto(
         List<String> images,
         List<String> facilities,
         boolean messAvailable,
-        String approvalStatus
+        String approvalStatus,
+        String category
 ) {
 }

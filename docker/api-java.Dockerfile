@@ -1,13 +1,16 @@
-FROM maven:3.9.11-eclipse-temurin-17 AS build
+FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
+# Copy only pom.xml first to leverage Docker cache for dependencies
 COPY apps/api-java/pom.xml apps/api-java/pom.xml
-COPY apps/api-java/src apps/api-java/src
-
 WORKDIR /workspace/apps/api-java
+RUN mvn dependency:go-offline -B
+
+# Copy source and build
+COPY apps/api-java/src src
 RUN mvn -B -DskipTests package
 
-FROM eclipse-temurin:17-jre-jammy
+FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
 RUN apt-get update \
@@ -16,7 +19,8 @@ RUN apt-get update \
     && groupadd --system spring \
     && useradd --system --gid spring spring
 
-COPY --from=build /workspace/apps/api-java/target/hostelhub-api-0.0.1-SNAPSHOT.jar app.jar
+# Match the expected jar name more reliably
+COPY --from=build /workspace/apps/api-java/target/*.jar app.jar
 COPY docker/api-java-entrypoint.sh /app/entrypoint.sh
 
 RUN chmod 755 /app/entrypoint.sh

@@ -7,8 +7,12 @@ import { API_BASE_URL } from '../config/api.config';
 export class OperationsService {
   private readonly http = inject(HttpClient);
 
-  getComplaints(): Observable<unknown[]> {
-    return this.http.get<unknown[]>(`${API_BASE_URL}/complaints`);
+  getComplaints(): Observable<any[]> {
+    return this.http.get<any[]>(`${API_BASE_URL}/complaints`);
+  }
+
+  createComplaint(complaint: { title: string; category: string; description: string }): Observable<any> {
+    return this.http.post<any>(`${API_BASE_URL}/complaints`, complaint);
   }
 
   getNotices(): Observable<unknown[]> {

@@ -62,7 +62,8 @@ public class HostelService {
                 images,
                 facilities,
                 facilities.contains("Mess"),
-                entity.getApprovalStatus() != null ? entity.getApprovalStatus() : "Approved"
+                entity.getApprovalStatus() != null ? entity.getApprovalStatus() : "Approved",
+                entity.getCategory()
         );
     }
 }

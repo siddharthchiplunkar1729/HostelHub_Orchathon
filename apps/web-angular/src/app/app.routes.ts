@@ -20,6 +20,8 @@ import { CommunitiesPageComponent } from './features/communities/communities.pag
 import { ProfilePageComponent } from './features/profile/profile.page';
 import { BookingPageComponent } from './features/booking/booking.page';
 import { FeePaymentPageComponent } from './features/fee-payment/fee-payment.page';
+import { authGuard } from './core/guards/auth.guard';
+import { roleGuard } from './core/guards/role.guard';
 
 export const routes: Routes = [
   // ── Landing ──
@@ -36,32 +38,31 @@ export const routes: Routes = [
   { path: 'hostels',      component: HostelListPageComponent },
   { path: 'hostels/:id',  component: HostelDetailPageComponent },
 
-  // ── Booking & Payment ──
-  { path: 'booking',      component: BookingPageComponent },
-  { path: 'fee-payment',  component: FeePaymentPageComponent },
+  // ── Booking ──
+  { path: 'booking',      component: BookingPageComponent, canActivate: [authGuard] },
 
   // ── Student Dashboard (nested pages) ──
-  { path: 'dashboard',              component: DashboardPageComponent },
-  { path: 'dashboard/profile',      component: ProfilePageComponent },
-  { path: 'dashboard/notices',      component: NoticesPageComponent },
-  { path: 'dashboard/mess-menu',    component: MessMenuPageComponent },
-  { path: 'dashboard/reviews',      component: DashboardReviewsPageComponent },
+  { path: 'dashboard',              component: DashboardPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
+  { path: 'dashboard/profile',      component: ProfilePageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
+  { path: 'dashboard/notices',      component: NoticesPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
+  { path: 'dashboard/mess-menu',    component: MessMenuPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
+  { path: 'dashboard/reviews',      component: DashboardReviewsPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
 
   // ── Student tools (top-level, mirroring React) ──
-  { path: 'applications', component: ApplicationsPageComponent },
-  { path: 'complaints',   component: ComplaintsPageComponent },
-  { path: 'notices',      component: NoticesPageComponent },
-  { path: 'mess-menu',    component: MessMenuPageComponent },
-  { path: 'profile',      component: ProfilePageComponent },
-  { path: 'students',     component: StudentsPageComponent },
+  { path: 'applications', component: ApplicationsPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'] } },
+  { path: 'complaints',   component: ComplaintsPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
+  { path: 'notices',      component: NoticesPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
+  { path: 'mess-menu',    component: MessMenuPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
+  { path: 'profile',      component: ProfilePageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'] } },
+  { path: 'students',     component: StudentsPageComponent, canActivate: [authGuard] },
 
   // ── Staff panels ──
-  { path: 'warden',  component: WardenPageComponent },
-  { path: 'admin',   component: AdminPageComponent },
+  { path: 'warden',  component: WardenPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Warden'] } },
+  { path: 'admin',   component: AdminPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Admin'] } },
 
   // ── Community ──
-  { path: 'stories',     component: StoriesPageComponent },
-  { path: 'communities', component: CommunitiesPageComponent },
+  { path: 'stories',     component: StoriesPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student', 'Warden', 'Admin'] } },
+  { path: 'communities', component: CommunitiesPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student', 'Warden', 'Admin'], requiresApproval: true } },
 
   // ── Fallback ──
   { path: '**', redirectTo: '' }

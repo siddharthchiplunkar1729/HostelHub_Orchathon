@@ -59,6 +59,10 @@ public class HostelInteractionController {
             );
         });
 
+        if (stats == null) {
+            stats = Map.of("averageRating", 0, "totalReviews", 0);
+        }
+
         return Map.of(
                 "reviews", reviews,
                 "averageRating", stats.get("averageRating"),

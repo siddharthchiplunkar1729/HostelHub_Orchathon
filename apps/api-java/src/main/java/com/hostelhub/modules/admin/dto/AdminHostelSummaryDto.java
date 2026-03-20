@@ -14,6 +14,7 @@ public record AdminHostelSummaryDto(
         String location,
         BigDecimal rating,
         String approvalStatus,
+        String category,
         WardenInfoDto wardenInfo
 ) {
     public record WardenInfoDto(

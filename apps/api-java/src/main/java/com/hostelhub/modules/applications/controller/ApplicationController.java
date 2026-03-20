@@ -23,44 +23,56 @@ import org.springframework.web.bind.annotation.RestController;
 public class ApplicationController {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
-    public ApplicationController(NamedParameterJdbcTemplate jdbcTemplate) {
+    public ApplicationController(NamedParameterJdbcTemplate jdbcTemplate, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping("/apply")
     @PreAuthorize("hasRole('STUDENT')")
     @Transactional
-    public Map<String, Object> apply(
-            @AuthenticationPrincipal AuthenticatedUser principal,
-            @RequestBody Map<String, Object> body
-    ) {
+    public Map<String, Object> apply(@AuthenticationPrincipal AuthenticatedUser principal, @RequestBody Map<String, Object> body) {
+        if (principal == null) {
+            throw new IllegalArgumentException("User principal not found. Please log in again.");
+        }
+
         UUID studentId = getStudentIdForUser(principal.getId());
         Object hostelBlockId = body.get("hostelBlockId");
         Object applicationData = body.get("applicationData");
 
-        if (studentId == null || hostelBlockId == null) {
-            throw new IllegalArgumentException("Student profile not found or missing Hostel Block ID");
+        System.out.println("Applying: user=" + principal.getId() + ", studentId=" + studentId + ", blockId=" + hostelBlockId);
+
+        if (studentId == null) {
+            System.err.println("Student record missing for user: " + principal.getId());
+            throw new IllegalArgumentException("Student profile not found. Please contact support.");
+        }
+        
+        if (hostelBlockId == null || hostelBlockId.toString().isBlank()) {
+            throw new IllegalArgumentException("Hostel Block ID is missing in request.");
         }
 
         Integer existing = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM hostel_applications
-                WHERE student_id = :studentId AND hostel_block_id = :hostelBlockId AND status = 'Pending'
+                WHERE student_id = :studentId AND hostel_block_id = CAST(:hostelBlockId AS uuid) AND status = 'Pending'
                 """, new MapSqlParameterSource()
                 .addValue("studentId", studentId)
-                .addValue("hostelBlockId", hostelBlockId), Integer.class);
+                .addValue("hostelBlockId", hostelBlockId.toString()), Integer.class);
         if (existing != null && existing > 0) {
             throw new IllegalArgumentException("You already have a pending application for this hostel");
         }
 
+        System.out.println("Applying: studentId=" + studentId + ", blockId=" + hostelBlockId);
+
         Map<String, Object> application = jdbcTemplate.query("""
                 INSERT INTO hostel_applications (student_id, hostel_block_id, status, application_data)
-                VALUES (:studentId, :hostelBlockId, 'Pending', CAST(:applicationData AS jsonb))
+                VALUES (:studentId, CAST(:hostelBlockId AS uuid), 'Pending', CAST(:applicationData AS jsonb))
                 RETURNING *
                 """, new MapSqlParameterSource()
                 .addValue("studentId", studentId)
-                .addValue("hostelBlockId", hostelBlockId)
-                .addValue("applicationData", applicationData == null ? "{}" : applicationData.toString()), rs -> {
+                .addValue("hostelBlockId", hostelBlockId.toString())
+                .addValue("applicationData", toJson(applicationData)), rs -> {
             if (!rs.next()) {
                 throw new IllegalArgumentException("Failed to submit application");
             }
@@ -244,5 +256,13 @@ public class ApplicationController {
         mapped.put("applicationData", rs.getString("application_data"));
         mapped.put("createdAt", rs.getTimestamp("created_at"));
         return mapped;
+    }
+
+    private String toJson(Object value) {
+        try {
+            return value == null ? "{}" : objectMapper.writeValueAsString(value);
+        } catch (Exception e) {
+            return "{}";
+        }
     }
 }

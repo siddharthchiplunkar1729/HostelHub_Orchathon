@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.hostelhub.security.AuthenticatedUser;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -28,9 +30,14 @@ public class MessMenuController {
 
     @GetMapping
     public Object getMenus(
+            @AuthenticationPrincipal AuthenticatedUser principal,
             @RequestParam(required = false) UUID blockId,
             @RequestParam(required = false) String day
     ) {
+        if (blockId == null && principal != null && "STUDENT".equalsIgnoreCase(principal.getRole())) {
+            blockId = getStudentHostelId(principal.getId());
+        }
+
         StringBuilder sql = new StringBuilder("""
                 SELECT mm.*, hb.block_name
                 FROM mess_menu mm
@@ -83,7 +90,14 @@ public class MessMenuController {
     }
 
     @GetMapping("/week")
-    public Map<String, Object> getWeeklyMenus(@RequestParam(required = false) UUID hostelBlockId) {
+    public Map<String, Object> getWeeklyMenus(
+            @AuthenticationPrincipal AuthenticatedUser principal,
+            @RequestParam(required = false) UUID hostelBlockId
+    ) {
+        if (hostelBlockId == null && principal != null && "STUDENT".equalsIgnoreCase(principal.getRole())) {
+            hostelBlockId = getStudentHostelId(principal.getId());
+        }
+
         StringBuilder sql = new StringBuilder("""
                 SELECT mm.*, hb.block_name
                 FROM mess_menu mm
@@ -136,6 +150,19 @@ public class MessMenuController {
         }
 
         return Map.of("success", true, "menu", rows.get(0));
+    }
+
+    private UUID getStudentHostelId(UUID userId) {
+        try {
+            return jdbcTemplate.queryForObject("""
+                    SELECT hostel_block_id FROM hostel_applications
+                    WHERE student_id = (SELECT id FROM students WHERE user_id = :userId)
+                    AND status = 'Accepted'
+                    LIMIT 1
+                    """, new MapSqlParameterSource("userId", userId), UUID.class);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private Map<String, Object> mapMenu(java.sql.ResultSet rs, String blockName) throws java.sql.SQLException {

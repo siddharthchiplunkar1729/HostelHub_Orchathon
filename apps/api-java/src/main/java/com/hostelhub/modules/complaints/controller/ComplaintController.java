@@ -36,6 +36,7 @@ public class ComplaintController {
     public List<Map<String, Object>> getComplaints(
             @RequestParam(required = false) UUID studentId,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "10") Integer limit,
             @AuthenticationPrincipal AuthenticatedUser principal
     ) {
@@ -52,7 +53,6 @@ public class ComplaintController {
                 SELECT c.*, u.name AS student_name, u.email AS student_email, s.room_number
                 FROM complaints c
                 JOIN students s ON c.student_id = s.id
-                JOIN users u ON s.user_id = u.id
                 WHERE 1 = 1
                 """);
         MapSqlParameterSource params = new MapSqlParameterSource().addValue("limit", limit);
@@ -64,6 +64,10 @@ public class ComplaintController {
         if (status != null && !status.isBlank()) {
             sql.append(" AND c.status = :status");
             params.addValue("status", status);
+        }
+        if (category != null && !category.isBlank()) {
+             sql.append(" AND c.category = :category");
+             params.addValue("category", category);
         }
 
         sql.append(" ORDER BY c.created_at DESC LIMIT :limit");
@@ -79,6 +83,7 @@ public class ComplaintController {
             mapped.put("_id", rs.getObject("id", UUID.class));
             mapped.put("studentId", student);
             mapped.put("title", rs.getString("title"));
+            mapped.put("category", rs.getString("category"));
             mapped.put("description", rs.getString("description"));
             mapped.put("status", rs.getString("status"));
             mapped.put("createdAt", rs.getTimestamp("created_at"));
@@ -104,14 +109,15 @@ public class ComplaintController {
         }
 
         String sql = """
-                INSERT INTO complaints (student_id, title, description, status, updated_at)
-                VALUES (:studentId, :title, :description, 'Pending', NOW())
+                INSERT INTO complaints (student_id, title, category, description, status, updated_at)
+                VALUES (:studentId, :title, :category, :description, 'Pending', NOW())
                 RETURNING *
                 """;
 
         return jdbcTemplate.query(sql, new MapSqlParameterSource()
                 .addValue("studentId", studentId)
                 .addValue("title", body.get("title"))
+                .addValue("category", body.get("category"))
                 .addValue("description", body.get("description")), rs -> {
             if (!rs.next()) {
                 throw new IllegalArgumentException("Failed to create complaint");
@@ -241,6 +247,7 @@ public class ComplaintController {
         mapped.put("id", rs.getObject("id", UUID.class));
         mapped.put("student_id", rs.getObject("student_id", UUID.class));
         mapped.put("title", rs.getString("title"));
+        mapped.put("category", rs.getString("category"));
         mapped.put("description", rs.getString("description"));
         mapped.put("status", rs.getString("status"));
         mapped.put("assigned_to", rs.getObject("assigned_to"));

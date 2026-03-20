@@ -9,7 +9,7 @@ import { OperationsService } from '../../core/services/operations.service';
     <div class="page">
       <section class="hero-card">
         <div class="eyebrow">Mess menu</div>
-        <h1>Weekly dining schedule with a cleaner Angular presentation.</h1>
+        <h1>Weekly dining schedule.</h1>
       </section>
 
       <section class="cards-grid" *ngIf="menu?.menus?.length; else singleOrEmpty">

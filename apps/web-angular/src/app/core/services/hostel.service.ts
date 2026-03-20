@@ -20,6 +20,7 @@ export interface HostelBlockSummary {
     name: string;
     phone: string;
   };
+  category?: string;
 }
 
 export interface HostelBlockDetail extends HostelBlockSummary {
@@ -62,9 +63,11 @@ export interface HostelSummary {
   facilities: string[];
   messAvailable: boolean;
   approvalStatus: string;
+  category?: string;
 }
 
 export interface AdminHostelSummary {
+  _id: string;
   id: string;
   blockName: string;
   type: string;
@@ -79,6 +82,7 @@ export interface AdminHostelSummary {
     name: string;
     email: string;
   };
+  category?: string;
 }
 
 @Injectable({ providedIn: 'root' })
