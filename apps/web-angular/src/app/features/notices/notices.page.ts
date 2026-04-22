@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { OperationsService } from '../../core/services/operations.service';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
+import { StudentService } from '../../core/services/student.service';
 
 @Component({
   standalone: true,
@@ -169,6 +171,8 @@ import { RouterLink } from '@angular/router';
 })
 export class NoticesPageComponent {
   private readonly operationsService = inject(OperationsService);
+  private readonly authService = inject(AuthService);
+  private readonly studentService = inject(StudentService);
 
   notices: any[] = [];
   loading = true;
@@ -183,11 +187,20 @@ export class NoticesPageComponent {
   }
 
   constructor() {
-    this.loadNotices();
+    const studentSession = this.authService.currentStudent();
+    if (studentSession?.id) {
+      // Load student detail to get their hostel block, then filter notices
+      this.studentService.getStudentById(studentSession.id).subscribe({
+        next: (detail) => this.loadNotices((detail as any)?.hostelBlockId?._id ?? (detail as any)?.hostelBlockId ?? undefined),
+        error: ()     => this.loadNotices()
+      });
+    } else {
+      this.loadNotices();
+    }
   }
 
-  loadNotices(): void {
-    this.operationsService.getNotices().subscribe({
+  loadNotices(hostelBlockId?: string): void {
+    this.operationsService.getNotices(hostelBlockId).subscribe({
       next: (data) => {
         this.notices = data;
         this.loading = false;

@@ -16,7 +16,7 @@ import { HostelBlockDetail, HostelService } from '../../core/services/hostel.ser
         <p>{{ hostel.description || 'Verified student accommodation with managed occupancy, facilities, and reviews.' }}</p>
         <div class="actions-row">
           <a class="btn ghost" routerLink="/search">Back to search</a>
-          <button class="btn" type="button" (click)="bookHostel()" [disabled]="hostel.availableRooms < 1">
+          <button class="btn" type="button" *ngIf="canApply" (click)="bookHostel()" [disabled]="hostel.availableRooms < 1">
             {{ hostel.availableRooms < 1 ? 'Currently full' : 'Book this hostel' }}
           </button>
         </div>
@@ -25,7 +25,7 @@ import { HostelBlockDetail, HostelService } from '../../core/services/hostel.ser
 
       <div class="detail-layout">
         <div class="stack">
-          <img class="listing-image" [src]="hostel.images[0] || fallbackImage" [alt]="hostel.blockName">
+          <img class="listing-image" [src]="hostel.images[0] || fallbackImage" [alt]="hostel.blockName" (error)="handleImageError($event)">
 
           <section class="card">
             <div class="section-header">
@@ -95,7 +95,7 @@ import { HostelBlockDetail, HostelService } from '../../core/services/hostel.ser
             </div>
           </section>
 
-          <section class="card">
+          <section class="card" *ngIf="canApply">
             <h3>Apply for Admission</h3>
             <p class="muted">Submit your application now. If approved, please visit the hostel physically within 12 hours to complete fee payment.</p>
             <div class="actions-row">
@@ -121,6 +121,7 @@ export class HostelDetailPageComponent {
   private readonly authService = inject(AuthService);
 
   readonly fallbackImage = 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80';
+  readonly canApply = !['Warden', 'Admin'].includes(this.authService.currentUser()?.role ?? '');
 
   hostel: HostelBlockDetail | null = null;
   loading = true;
@@ -146,6 +147,14 @@ export class HostelDetailPageComponent {
         }
       });
     });
+  }
+
+  handleImageError(event: Event): void {
+    const image = event.target as HTMLImageElement | null;
+    if (!image || image.src === this.fallbackImage) {
+      return;
+    }
+    image.src = this.fallbackImage;
   }
 
   bookHostel(): void {

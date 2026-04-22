@@ -36,13 +36,10 @@ export interface DashboardPayload {
   messMenu: {
     _id: string;
     day: string;
-    meals: Array<{
-      mealType: string;
-      items: string[];
-      timings: string;
-      thumbsUp: number;
-      thumbsDown: number;
-    }>;
+    breakfast: string;
+    lunch: string;
+    snacks: string;
+    dinner: string;
   } | null;
 }
 

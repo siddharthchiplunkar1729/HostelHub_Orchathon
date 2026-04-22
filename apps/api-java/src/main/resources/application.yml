@@ -4,7 +4,7 @@ server:
 
 spring:
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/hostelhub}
+    url: ${DATABASE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:hostelhub}}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:}
   jpa:
@@ -22,6 +22,7 @@ spring:
 app:
   security:
     jwt-secret: ${JWT_SECRET:}
+    jwt-secret-file: ${JWT_SECRET_FILE:}
     access-token-ttl: 7d
     refresh-token-ttl: 30d
     reset-token-ttl: 15m

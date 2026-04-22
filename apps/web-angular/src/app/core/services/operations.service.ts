@@ -15,12 +15,16 @@ export class OperationsService {
     return this.http.post<any>(`${API_BASE_URL}/complaints`, complaint);
   }
 
-  getNotices(): Observable<unknown[]> {
-    return this.http.get<unknown[]>(`${API_BASE_URL}/notices`);
+  getNotices(hostelBlockId?: string, limit = 50): Observable<unknown[]> {
+    const params = new URLSearchParams();
+    if (hostelBlockId) params.set('hostelBlockId', hostelBlockId);
+    params.set('limit', String(limit));
+    return this.http.get<unknown[]>(`${API_BASE_URL}/notices?${params.toString()}`);
   }
 
-  getWeeklyMessMenu(): Observable<unknown> {
-    return this.http.get<unknown>(`${API_BASE_URL}/mess-menu/week`);
+  getWeeklyMessMenu(hostelBlockId?: string): Observable<unknown> {
+    const query = hostelBlockId ? `?hostelBlockId=${encodeURIComponent(hostelBlockId)}` : '';
+    return this.http.get<unknown>(`${API_BASE_URL}/mess-menu/week${query}`);
   }
 
   getWardenDashboard(): Observable<unknown> {

@@ -1,0 +1,52 @@
+services:
+  - type: pserv
+    name: api-java
+    env: docker
+    dockerfilePath: docker/api-java.Dockerfile
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DB_HOST
+        fromDatabase:
+          name: hostelhub-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: hostelhub-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: hostelhub-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: hostelhub-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: hostelhub-db
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: APP_PORT
+        value: 8080
+      - key: CORS_ALLOWED_ORIGINS
+        value: "*"
+      - key: FRONTEND_URL
+        value: "*"
+
+  - type: web
+    name: hostelhub-web
+    env: docker
+    dockerfilePath: docker/web-angular.Dockerfile
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 80
+
+databases:
+  - name: hostelhub-db
+    databaseName: hostelhub
+    user: hostelhub_user
+    plan: free

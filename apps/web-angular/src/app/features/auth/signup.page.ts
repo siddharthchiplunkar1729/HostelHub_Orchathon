@@ -10,7 +10,6 @@ import { AuthService } from '../../core/services/auth.service';
   template: `
     <div class="auth-page animate-fade-in-up">
       <div class="auth-card">
-        <!-- Left panel: Visual Splash -->
         <div class="auth-panel auth-panel--left">
           <div class="overlay"></div>
           <div class="auth-content">
@@ -18,19 +17,18 @@ import { AuthService } from '../../core/services/auth.service';
             <div>
               <h2 style="font-size:2.5rem;font-weight:900;letter-spacing:-0.05em;margin:0 0 16px;line-height:1.1;">Join<br>HostelHub</h2>
               <p style="color:rgba(255,255,255,0.85);font-size:1.1rem;font-weight:400;line-height:1.6;margin:0 0 32px;">
-                Register as a student or warden and kick-start your hostel journey in minutes.
+                Register as a student and kick-start your hostel journey in minutes.
               </p>
-              
+
               <div class="features-list">
-                <div class="feature-item"><span class="icon">✨</span> Access 2,400+ premium hostels</div>
-                <div class="feature-item"><span class="icon">📋</span> Apply in one seamless digital step</div>
-                <div class="feature-item"><span class="icon">🌍</span> Connect with vibrant communities</div>
+                <div class="feature-item"><span class="icon">+</span> Access 2,400+ premium hostels</div>
+                <div class="feature-item"><span class="icon">+</span> Apply in one seamless digital step</div>
+                <div class="feature-item"><span class="icon">+</span> Connect with vibrant communities</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Right panel: Form -->
         <div class="auth-panel auth-panel--right">
           <div class="form-wrapper">
             <h1 style="font-size:1.8rem;font-weight:900;letter-spacing:-0.03em;margin:0 0 8px;color:var(--text);">Create Account</h1>
@@ -40,22 +38,16 @@ import { AuthService } from '../../core/services/auth.service';
               <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
               Sign up with Google
             </button>
-            
+
             <div class="divider">
               <span>or sign up with email</span>
             </div>
 
             <form [formGroup]="form" (ngSubmit)="submit()">
-              <!-- Role Selection -->
               <div class="field group" style="margin-bottom:20px;">
-                <label>I am a</label>
-                <div class="role-selector">
-                  <button type="button" class="role-option" [class.active]="selectedRole === 'Student'" (click)="selectRole('Student')">
-                    👨‍🎓 Student
-                  </button>
-                  <button type="button" class="role-option" [class.active]="selectedRole === 'Warden'" (click)="selectRole('Warden')">
-                    🏢 Warden
-                  </button>
+                <label>Registration</label>
+                <div class="role-hint">
+                  Student self-registration is available here. Warden accounts are provisioned by the platform team.
                 </div>
               </div>
 
@@ -79,12 +71,6 @@ import { AuthService } from '../../core/services/auth.service';
                 <input formControlName="password" type="password" placeholder="Min. 8 characters" class="premium-input">
               </div>
 
-              <!-- Additional field for Warden -->
-              <div class="field group animate-fade-in-up" *ngIf="selectedRole === 'Warden'" style="margin-bottom:16px;">
-                <label>Hostel Block Name</label>
-                <input formControlName="blockName" placeholder="e.g., Boys Block A" class="premium-input">
-              </div>
-
               <button class="btn premium-btn" type="submit" style="margin-top:12px;">Complete Registration</button>
             </form>
 
@@ -101,10 +87,9 @@ import { AuthService } from '../../core/services/auth.service';
       border-radius:24px;overflow:hidden;box-shadow:0 32px 80px rgba(15,23,42,0.12);
       background:white;
     }
-    
+
     .auth-panel { position:relative; }
-    
-    /* Left Panel: Image + Overlay */
+
     .auth-panel--left {
       background-image: url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=1200&q=80');
       background-size: cover; background-position: center;
@@ -118,17 +103,18 @@ import { AuthService } from '../../core/services/auth.service';
     .auth-content {
       position:relative;z-index:2;padding:64px;display:flex;flex-direction:column;height:100%;
     }
-    
-    /* Features */
+
     .features-list { display:flex;flex-direction:column;gap:16px;margin-top:24px; }
     .feature-item { display:flex;align-items:center;gap:12px;font-size:0.95rem;font-weight:500;color:rgba(255,255,255,0.9); }
-    .feature-item .icon { font-size:1.1rem; }
+    .feature-item .icon {
+      display:inline-flex;align-items:center;justify-content:center;
+      width:20px;height:20px;border-radius:999px;background:rgba(255,255,255,0.18);
+      font-size:0.95rem;font-weight:800;
+    }
 
-    /* Right Panel: Form area */
     .auth-panel--right { display:flex;align-items:center;justify-content:center;padding:48px 32px;background:#ffffff; }
     .form-wrapper { width:100%;max-width:440px; }
 
-    /* Premium Form Controls */
     .field label { font-size:0.8rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;display:block; }
     .premium-input {
       width:100%;padding:14px 18px;border-radius:14px;
@@ -145,17 +131,11 @@ import { AuthService } from '../../core/services/auth.service';
     .primary-link { color:var(--primary);font-weight:700;text-decoration:none;transition:opacity 0.2s; }
     .primary-link:hover { opacity:0.8; }
 
-    /* Role Selector */
-    .role-selector { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
-    .role-option {
-      padding:14px;border:2px solid #f1f5f9;border-radius:12px;
-      background:#f8fafc;cursor:pointer;font-weight:700;font-size:0.95rem;color:var(--text-light);
-      transition:all 0.2s;display:flex;justify-content:center;align-items:center;gap:8px;
+    .role-hint {
+      padding:14px 16px;border-radius:12px;border:1px solid #dbeafe;background:#eff6ff;
+      color:#1d4ed8;font-size:0.92rem;font-weight:600;line-height:1.5;
     }
-    .role-option:hover { border-color:#cbd5e1;background:#f1f5f9;color:var(--text); }
-    .role-option.active { border-color:var(--primary);background:var(--primary-light);color:var(--primary); }
 
-    /* Buttons */
     .premium-btn {
       width:100%;padding:16px;border-radius:14px;font-size:1rem;font-weight:800;letter-spacing:0.02em;
       background:linear-gradient(135deg,var(--primary),#6d28d9);color:white;border:none;cursor:pointer;
@@ -173,7 +153,6 @@ import { AuthService } from '../../core/services/auth.service';
     .google-btn img { width:20px;height:20px;margin-right:12px; }
     .google-btn:hover { background:#f8fafc;border-color:#e2e8f0; }
 
-    /* Utilities */
     .divider { display:flex;align-items:center;text-align:center;margin-bottom:28px;color:#94a3b8;font-size:0.8rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase; }
     .divider::before, .divider::after { content:'';flex:1;border-bottom:1px solid #e2e8f0; }
     .divider span { padding:0 16px; }
@@ -194,14 +173,11 @@ export class SignupPageComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  selectedRole: 'Student' | 'Warden' = 'Student';
-
   readonly form = this.fb.nonNullable.group({
     name:     ['', Validators.required],
     email:    ['', [Validators.required, Validators.email]],
     phone:    ['', [Validators.required, Validators.pattern('^[0-9]{10}$')]],
-    password: ['', [Validators.required, Validators.minLength(8)]],
-    blockName: ['']
+    password: ['', [Validators.required, Validators.minLength(8)]]
   });
 
   message = '';
@@ -209,16 +185,6 @@ export class SignupPageComponent {
 
   loginWithGoogle(): void {
     alert('Google OAuth login connection will be integrated here soon.');
-  }
-
-  selectRole(role: 'Student' | 'Warden'): void {
-    this.selectedRole = role;
-    if (role === 'Student') {
-      this.form.get('blockName')?.clearValidators();
-    } else {
-      this.form.get('blockName')?.setValidators([Validators.required]);
-    }
-    this.form.get('blockName')?.updateValueAndValidity();
   }
 
   submit(): void {
@@ -233,30 +199,27 @@ export class SignupPageComponent {
       this.isError = true;
       return;
     }
-    const payload = { ...this.form.getRawValue(), role: this.selectedRole };
-    if (this.selectedRole === 'Student') {
-      delete (payload as any).blockName;
-    }
+
+    const payload = { ...this.form.getRawValue(), role: 'Student' };
 
     this.authService.signup(payload).subscribe({
       next: (response) => {
         this.message = response.message;
         this.isError = false;
-        const params = this.route.snapshot.queryParams as any;
+        const params = this.route.snapshot.queryParams as Record<string, string | undefined>;
         const returnUrl = params['returnUrl'];
         const hostelId = params['hostelId'];
         const blockName = params['blockName'];
 
         if (returnUrl) {
-          this.router.navigate([returnUrl], { 
+          this.router.navigate([returnUrl], {
             queryParams: { hostelId, blockName },
             queryParamsHandling: 'merge'
           });
           return;
         }
 
-        const target = this.selectedRole === 'Student' ? '/search' : '/warden';
-        this.router.navigateByUrl(target);
+        this.router.navigateByUrl('/search');
       },
       error: (error) => {
         this.message = error.error?.error ?? 'Signup failed. Please try again.';

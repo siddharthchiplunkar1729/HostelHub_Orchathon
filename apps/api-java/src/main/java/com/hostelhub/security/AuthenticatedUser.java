@@ -11,9 +11,11 @@ import org.springframework.security.core.userdetails.UserDetails;
 public class AuthenticatedUser implements UserDetails {
 
     private final UserEntity user;
+    private final String normalizedRole;
 
     public AuthenticatedUser(UserEntity user) {
         this.user = user;
+        this.normalizedRole = user.getRole() == null ? "" : user.getRole().trim().toUpperCase();
     }
 
     public UUID getId() {
@@ -30,7 +32,9 @@ public class AuthenticatedUser implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().toUpperCase()));
+        return normalizedRole.isBlank()
+                ? List.of()
+                : List.of(new SimpleGrantedAuthority("ROLE_" + normalizedRole));
     }
 
     @Override
@@ -60,6 +64,6 @@ public class AuthenticatedUser implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return user.getIsActive();
+        return Boolean.TRUE.equals(user.getIsActive());
     }
 }

@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { AdminHostelSummary, HostelService } from '../../core/services/hostel.service';
-import { AdminService } from '../../core/services/admin.service';
+import { AdminService, AdminUserSummary } from '../../core/services/admin.service';
 import { RouterLink } from '@angular/router';
 
 @Component({
@@ -59,6 +59,13 @@ import { RouterLink } from '@angular/router';
         </article>
       </section>
 
+      <!-- Admin Navigation Tabs -->
+      <div class="tab-row" style="margin: 24px 0;">
+        <button class="filter-tab" [class.active]="activeTab === 'hostels'" (click)="activeTab = 'hostels'">Hostel Listings</button>
+        <button class="filter-tab" [class.active]="activeTab === 'users'" (click)="activeTab = 'users'; loadUsers()">User Management</button>
+      </div>
+
+      <ng-container *ngIf="activeTab === 'hostels'">
       <!-- Search + filter bar -->
       <section class="card" style="padding:20px 24px">
         <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
@@ -166,6 +173,66 @@ import { RouterLink } from '@angular/router';
         <h2 style="font-size:1.25rem;font-weight:800;margin:0 0 8px">No listing requests!</h2>
         <p>All clear. New requests will appear here for verification.</p>
       </div>
+      </ng-container>
+
+      <ng-container *ngIf="activeTab === 'users'">
+        <section class="card" style="padding:20px 24px">
+          <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+            <div class="search-wrap" style="flex:1;min-width:200px">
+              <span class="search-icon">🔍</span>
+              <input type="text" [(ngModel)]="userSearchQuery" placeholder="Search users by name, email or role...">
+            </div>
+            <div class="field" style="min-width:180px">
+              <select [(ngModel)]="userRoleFilter" style="padding:10px 14px;border-radius:var(--radius-full)">
+                <option value="">All Roles</option>
+                <option value="Student">Student</option>
+                <option value="Warden">Warden</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <div class="loading-state" *ngIf="loadingUsers">
+          <div class="spinner"></div>
+          <p>Fetching user accounts...</p>
+        </div>
+
+        <section *ngIf="!loadingUsers && filteredUsers.length" class="list">
+          <article class="hostel-admin-card" *ngFor="let u of filteredUsers">
+            <div class="hostel-admin-info">
+              <div class="icon-box" style="width:56px;height:56px;background:var(--primary-light);border-radius:50%;font-size:1.5rem">👤</div>
+              <div>
+                <h3 style="margin:0 0 4px;font-size:1.1rem;font-weight:800;letter-spacing:-0.02em">{{ u.name }}</h3>
+                <p class="muted" style="margin:0;font-size:0.82rem">{{ u.email }} · {{ u.phone || 'No phone' }}</p>
+              </div>
+            </div>
+            
+            <div class="hostel-admin-stats">
+              <div class="hostel-stat">
+                <div class="muted">Role</div>
+                <strong [ngClass]="{'color-primary': u.role === 'Admin', 'color-accent': u.role === 'Warden'}">{{ u.role }}</strong>
+              </div>
+            </div>
+
+            <div class="hostel-admin-actions">
+              <div class="field" style="margin: 0;">
+                <select [ngModel]="u.role" (ngModelChange)="updateUserRole(u._id, $event)" [disabled]="u.role === 'Admin'" style="padding: 6px 12px; font-size: 0.9rem;">
+                  <option value="Student">Student</option>
+                  <option value="Warden">Warden</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <div class="empty-state" *ngIf="!loadingUsers && !filteredUsers.length">
+          <span class="icon">🔍</span>
+          <h2 style="font-size:1.25rem;font-weight:800;margin:0 0 8px">No users found</h2>
+          <p>Try adjusting your search filters.</p>
+        </div>
+      </ng-container>
     </div>
   `,
   styles: [`
@@ -208,7 +275,10 @@ import { RouterLink } from '@angular/router';
     }
     .decision-btn:hover { border-color:var(--primary);background:var(--primary-light); }
     .decision-btn.approve.active { border-color:var(--success);background:var(--success-light);color:var(--success); }
+    .decision-btn.approve.active { border-color:var(--success);background:var(--success-light);color:var(--success); }
     .decision-btn.reject.active { border-color:var(--danger);background:var(--danger-light);color:var(--danger); }
+    .color-primary { color: var(--primary) !important; }
+    .color-accent { color: var(--accent) !important; }
   `]
 })
 export class AdminPageComponent {
@@ -219,6 +289,7 @@ export class AdminPageComponent {
   loading = true;
   searchQuery = '';
   activeFilter = 'All';
+  activeTab: 'hostels' | 'users' = 'hostels';
   expandedId: string | null = null;
   selectedDecision: 'Approved' | 'Rejected' | null = null;
   approvalComments = '';
@@ -227,6 +298,11 @@ export class AdminPageComponent {
   selectedLocation = '';
   readonly filterOptions = ['All', 'Pending', 'Approved', 'Rejected'];
   readonly locationOptions = ['North Campus', 'South Campus', 'East Campus', 'West Campus', 'Off-Campus'];
+
+  users: AdminUserSummary[] = [];
+  loadingUsers = false;
+  userSearchQuery = '';
+  userRoleFilter = '';
 
   get pending()  { return this.hostels.filter(h => h.approvalStatus === 'Pending').length; }
   get approved() { return this.hostels.filter(h => h.approvalStatus === 'Approved').length; }
@@ -238,6 +314,15 @@ export class AdminPageComponent {
       const q = this.searchQuery.toLowerCase();
       const matchSearch = !q || h.blockName.toLowerCase().includes(q) || h.wardenInfo.name.toLowerCase().includes(q);
       return matchFilter && matchLocation && matchSearch;
+    });
+  }
+
+  get filteredUsers() {
+    return this.users.filter(u => {
+      const matchRole = !this.userRoleFilter || u.role === this.userRoleFilter;
+      const q = this.userSearchQuery.toLowerCase();
+      const matchSearch = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+      return matchRole && matchSearch;
     });
   }
 
@@ -275,6 +360,30 @@ export class AdminPageComponent {
       error: (err) => {
         this.message = err.error?.error || 'Failed to submit decision.';
         this.submitting = false;
+      }
+    });
+  }
+
+  loadUsers(): void {
+    if (this.users.length > 0) return;
+    this.loadingUsers = true;
+    this.adminService.getUsers().subscribe({
+      next: (data) => { this.users = data; this.loadingUsers = false; },
+      error: () => { this.users = []; this.loadingUsers = false; }
+    });
+  }
+
+  updateUserRole(userId: string, role: string): void {
+    if (!confirm(`Are you sure you want to change this user's role to ${role}?`)) return;
+    
+    this.adminService.updateUserRole(userId, role).subscribe({
+      next: (res) => {
+        const u = this.users.find(u => u._id === userId);
+        if (u) u.role = role;
+        this.message = 'User role updated successfully.';
+      },
+      error: (err) => {
+        this.message = err.error?.error || 'Failed to update user role.';
       }
     });
   }

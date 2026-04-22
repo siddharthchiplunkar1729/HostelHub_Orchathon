@@ -12,6 +12,7 @@ import com.hostelhub.modules.users.repository.UserRepository;
 import com.hostelhub.security.AuthenticatedUser;
 import com.hostelhub.security.JwtService;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthService {
+
+    private static final String STUDENT_ROLE = "Student";
+    private static final Set<String> SELF_SERVICE_SIGNUP_ROLES = Set.of(STUDENT_ROLE);
 
     private final UserRepository userRepository;
     private final StudentRepository studentRepository;
@@ -62,26 +66,22 @@ public class AuthService {
     @Transactional
     public AuthResponse signup(SignupRequest request) {
         String email = normalizeEmail(request.email());
-        String role = request.role() == null || request.role().isBlank() ? "Student" : request.role();
-        String normalizedPhone = request.phone().replaceAll("\\D", "");
+        String role = normalizeSignupRole(request.role());
+        String normalizedPhone = normalizePhone(request.phone());
+        String normalizedName = normalizeName(request.name());
 
         if (normalizedPhone.length() != 10) {
             throw new IllegalArgumentException("Phone number must be exactly 10 digits");
         }
 
-        UserEntity existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
-        if (existingUser != null) {
-            StudentEntity existingStudent = studentRepository.findByUserId(existingUser.getId()).orElse(null);
-            if (existingStudent == null && "Student".equalsIgnoreCase(existingUser.getRole())) {
-                existingStudent = createStudentProfile(existingUser, request.studentData());
-            }
-            return buildAuthResponse(existingUser, existingStudent, "User profile synchronized", null);
+        if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
+            throw new IllegalArgumentException("An account with this email already exists");
         }
 
         UserEntity user = new UserEntity();
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(request.password()));
-        user.setName(request.name());
+        user.setName(normalizedName);
         user.setPhone(normalizedPhone);
         user.setRole(role);
         user.setCanAccessDashboard(false);
@@ -89,7 +89,7 @@ public class AuthService {
         userRepository.save(user);
 
         StudentEntity student = null;
-        if ("Student".equalsIgnoreCase(role)) {
+        if (STUDENT_ROLE.equals(role)) {
             student = createStudentProfile(user, request.studentData());
         }
 
@@ -97,6 +97,10 @@ public class AuthService {
     }
 
     public AuthResponse me(AuthenticatedUser principal) {
+        if (principal == null) {
+            throw new IllegalArgumentException("Authentication required");
+        }
+
         UserEntity user = userRepository.findById(principal.getId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         StudentEntity student = studentRepository.findByUserId(user.getId()).orElse(null);
@@ -108,7 +112,7 @@ public class AuthService {
         String genericMessage = "If an account with that email exists, a password reset link has been sent.";
 
         UserEntity user = userRepository.findByEmailIgnoreCase(email).orElse(null);
-        if (user == null) {
+        if (user == null || !Boolean.TRUE.equals(user.getIsActive())) {
             return new AuthResponse(true, genericMessage, null, null, null, null, null);
         }
 
@@ -134,11 +138,17 @@ public class AuthService {
         UUID userId = UUID.fromString(jwt.getSubject());
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired reset token"));
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new IllegalArgumentException("Invalid or expired reset token");
+        }
 
         String passwordVersion = jwt.getClaimAsString("passwordVersion");
         String currentPasswordVersion = jwtService.getPasswordVersion(user.getPassword());
         if (passwordVersion == null || !passwordVersion.equals(currentPasswordVersion)) {
             throw new IllegalArgumentException("Invalid or expired reset token");
+        }
+        if (passwordEncoder.matches(request.password(), user.getPassword())) {
+            throw new IllegalArgumentException("New password must be different from the current password");
         }
 
         user.setPassword(passwordEncoder.encode(request.password()));
@@ -182,14 +192,35 @@ public class AuthService {
         return email.trim().toLowerCase(Locale.ROOT);
     }
 
+    private String normalizeSignupRole(String requestedRole) {
+        String normalizedRole = requestedRole == null || requestedRole.isBlank()
+                ? STUDENT_ROLE
+                : requestedRole.trim();
+        if (STUDENT_ROLE.equalsIgnoreCase(normalizedRole)) {
+            normalizedRole = STUDENT_ROLE;
+        }
+
+        if (!SELF_SERVICE_SIGNUP_ROLES.contains(normalizedRole)) {
+            throw new IllegalArgumentException("Only student self-registration is currently supported");
+        }
+
+        return normalizedRole;
+    }
+
+    private String normalizePhone(String phone) {
+        return phone == null ? "" : phone.replaceAll("\\D", "");
+    }
+
+    private String normalizeName(String name) {
+        return name == null ? "" : name.trim().replaceAll("\\s+", " ");
+    }
+
     private StudentEntity createStudentProfile(UserEntity user, SignupRequest.StudentSignupData studentData) {
         StudentEntity student = new StudentEntity();
         student.setUser(user);
         student.setRollNumber(resolveRollNumber(studentData));
-        student.setDepartment(studentData != null && studentData.department() != null
-                ? studentData.department() : "General");
-        student.setCourse(studentData != null && studentData.course() != null
-                ? studentData.course() : "Basic");
+        student.setDepartment(defaultIfBlank(studentData != null ? studentData.department() : null, "General"));
+        student.setCourse(defaultIfBlank(studentData != null ? studentData.course() : null, "Basic"));
         student.setYear(studentData != null && studentData.year() != null
                 ? studentData.year() : 1);
         student.setEnrollmentStatus("Prospective");
@@ -197,13 +228,28 @@ public class AuthService {
     }
 
     private String resolveRollNumber(SignupRequest.StudentSignupData studentData) {
-        String requested = studentData != null ? studentData.rollNumber() : null;
+        String requested = studentData != null && studentData.rollNumber() != null
+                ? studentData.rollNumber().trim()
+                : null;
         if (requested != null && !requested.isBlank()) {
             if (studentRepository.existsByRollNumber(requested)) {
-                return requested; // Reuse if exists (mostly for self-correction)
+                throw new IllegalArgumentException("Roll number is already registered");
             }
             return requested;
         }
-        return "TEMP-" + System.currentTimeMillis();
+
+        String generated;
+        do {
+            generated = "TEMP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+        } while (studentRepository.existsByRollNumber(generated));
+
+        return generated;
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        return value.trim();
     }
 }

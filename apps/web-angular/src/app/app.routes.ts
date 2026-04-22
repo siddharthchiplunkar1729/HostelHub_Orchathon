@@ -48,17 +48,18 @@ export const routes: Routes = [
   { path: 'dashboard/mess-menu',    component: MessMenuPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
   { path: 'dashboard/reviews',      component: DashboardReviewsPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
 
-  // ── Student tools (top-level, mirroring React) ──
+  // ── Student tools (top-level) ──
   { path: 'applications', component: ApplicationsPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'] } },
-  { path: 'complaints',   component: ComplaintsPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
-  { path: 'notices',      component: NoticesPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
-  { path: 'mess-menu',    component: MessMenuPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'], requiresApproval: true } },
-  { path: 'profile',      component: ProfilePageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'] } },
-  { path: 'students',     component: StudentsPageComponent, canActivate: [authGuard] },
+  { path: 'complaints',   component: ComplaintsPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student', 'Warden', 'Admin'] } },
+  { path: 'notices',      component: NoticesPageComponent, canActivate: [authGuard] },
+  { path: 'mess-menu',    component: MessMenuPageComponent, canActivate: [authGuard] },
+  { path: 'profile',      component: ProfilePageComponent, canActivate: [authGuard] },
+  { path: 'students',     component: StudentsPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Admin', 'Warden'] } },
 
   // ── Staff panels ──
-  { path: 'warden',  component: WardenPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Warden'] } },
+  { path: 'warden',  component: WardenPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Warden', 'Admin'] } },
   { path: 'admin',   component: AdminPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Admin'] } },
+  { path: 'fee-payment', component: FeePaymentPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student'] } },
 
   // ── Community ──
   { path: 'stories',     component: StoriesPageComponent, canActivate: [authGuard, roleGuard], data: { roles: ['Student', 'Warden', 'Admin'] } },

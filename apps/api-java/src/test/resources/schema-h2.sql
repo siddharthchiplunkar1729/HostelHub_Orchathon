@@ -40,3 +40,20 @@ CREATE TABLE communities (
     image VARCHAR(1024),
     created_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE students (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL,
+    roll_number VARCHAR(50) UNIQUE NOT NULL,
+    course VARCHAR(255),
+    year INTEGER,
+    department VARCHAR(255),
+    hostel_block_id UUID,
+    room_number VARCHAR(50),
+    enrollment_status VARCHAR(50),
+    photo VARCHAR(1024),
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    CONSTRAINT fk_students_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_students_hostel_block FOREIGN KEY (hostel_block_id) REFERENCES hostel_blocks(id)
+);

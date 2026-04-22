@@ -1,5 +1,8 @@
 package com.hostelhub.modules.messmenu.controller;
 
+import com.hostelhub.security.AuthenticatedUser;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -7,12 +10,13 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import com.hostelhub.security.AuthenticatedUser;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -63,8 +67,27 @@ public class MessMenuController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, Object> createMenu(@RequestBody Map<String, Object> body) {
+    public Map<String, Object> createMenu(
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal AuthenticatedUser principal
+    ) {
+        UUID hostelBlockId = parseUuid(body.get("hostelBlockId"), "Hostel block is required");
+        ensureBlockAccess(principal, hostelBlockId);
+
+        String day = requireString(body.get("day"), "Day is required");
+        Integer existing = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM mess_menu
+                WHERE hostel_block_id = :hostelBlockId AND LOWER(day) = LOWER(:day)
+                """, new MapSqlParameterSource()
+                .addValue("hostelBlockId", hostelBlockId)
+                .addValue("day", day), Integer.class);
+        if (existing != null && existing > 0) {
+            throw new IllegalArgumentException("A menu for this day already exists. Use update instead.");
+        }
+
         String sql = """
                 INSERT INTO mess_menu (hostel_block_id, day, breakfast, lunch, snacks, dinner)
                 VALUES (:hostelBlockId, :day, :breakfast, :lunch, :snacks, :dinner)
@@ -72,8 +95,8 @@ public class MessMenuController {
                 """;
 
         return jdbcTemplate.query(sql, new MapSqlParameterSource()
-                .addValue("hostelBlockId", body.get("hostelBlockId"))
-                .addValue("day", body.get("day"))
+                .addValue("hostelBlockId", hostelBlockId)
+                .addValue("day", day)
                 .addValue("breakfast", body.get("breakfast"))
                 .addValue("lunch", body.get("lunch"))
                 .addValue("snacks", body.get("snacks"))
@@ -81,12 +104,47 @@ public class MessMenuController {
             if (!rs.next()) {
                 throw new IllegalArgumentException("Failed to create mess menu");
             }
-            Map<String, Object> mapped = new LinkedHashMap<>();
-            mapped.put("_id", rs.getObject("id", UUID.class));
-            mapped.put("id", rs.getObject("id", UUID.class));
-            mapped.put("day", rs.getString("day"));
-            return mapped;
+            return mapSimpleMenu(rs);
         });
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
+    public Map<String, Object> updateMenu(
+            @PathVariable UUID id,
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal AuthenticatedUser principal
+    ) {
+        ensureMenuAccess(principal, id);
+
+        String sql = """
+                UPDATE mess_menu
+                SET day = COALESCE(:day, day),
+                    breakfast = COALESCE(:breakfast, breakfast),
+                    lunch = COALESCE(:lunch, lunch),
+                    snacks = COALESCE(:snacks, snacks),
+                    dinner = COALESCE(:dinner, dinner)
+                WHERE id = :id
+                RETURNING *
+                """;
+
+        Map<String, Object> menu = jdbcTemplate.query(sql, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("day", body.get("day"))
+                .addValue("breakfast", body.get("breakfast"))
+                .addValue("lunch", body.get("lunch"))
+                .addValue("snacks", body.get("snacks"))
+                .addValue("dinner", body.get("dinner")), rs -> rs.next() ? mapSimpleMenu(rs) : null);
+
+        if (menu == null) {
+            throw new IllegalArgumentException("Menu not found");
+        }
+
+        return Map.of(
+                "success", true,
+                "menu", menu,
+                "message", "Mess menu updated successfully"
+        );
     }
 
     @GetMapping("/week")
@@ -165,11 +223,9 @@ public class MessMenuController {
         }
     }
 
-    private Map<String, Object> mapMenu(java.sql.ResultSet rs, String blockName) throws java.sql.SQLException {
-        Map<String, Object> mapped = new LinkedHashMap<>();
-        mapped.put("_id", rs.getObject("id", UUID.class));
+    private Map<String, Object> mapMenu(ResultSet rs, String blockName) throws SQLException {
+        Map<String, Object> mapped = mapSimpleMenu(rs);
         mapped.put("date", java.time.Instant.now().toString());
-        mapped.put("day", rs.getString("day"));
         mapped.put("hostelName", blockName);
         mapped.put("meals", List.of(
                 meal("Breakfast", rs.getString("breakfast"), "07:30 AM - 09:30 AM", 450),
@@ -180,10 +236,8 @@ public class MessMenuController {
         return mapped;
     }
 
-    private Map<String, Object> mapWeeklyMenu(java.sql.ResultSet rs, String blockName) throws java.sql.SQLException {
-        Map<String, Object> mapped = new LinkedHashMap<>();
-        mapped.put("_id", rs.getObject("id", UUID.class));
-        mapped.put("day", rs.getString("day"));
+    private Map<String, Object> mapWeeklyMenu(ResultSet rs, String blockName) throws SQLException {
+        Map<String, Object> mapped = mapSimpleMenu(rs);
         mapped.put("date", java.time.Instant.now().toString());
         mapped.put("hostelName", blockName);
         mapped.put("meals", List.of(
@@ -192,6 +246,19 @@ public class MessMenuController {
                 mealNoCalories("Snacks", rs.getString("snacks"), "04:30 PM - 05:30 PM"),
                 mealNoCalories("Dinner", rs.getString("dinner"), "07:30 PM - 09:30 PM")
         ));
+        return mapped;
+    }
+
+    private Map<String, Object> mapSimpleMenu(ResultSet rs) throws SQLException {
+        Map<String, Object> mapped = new LinkedHashMap<>();
+        mapped.put("_id", rs.getObject("id", UUID.class));
+        mapped.put("id", rs.getObject("id", UUID.class));
+        mapped.put("hostelBlockId", rs.getObject("hostel_block_id", UUID.class));
+        mapped.put("day", rs.getString("day"));
+        mapped.put("breakfast", rs.getString("breakfast"));
+        mapped.put("lunch", rs.getString("lunch"));
+        mapped.put("snacks", rs.getString("snacks"));
+        mapped.put("dinner", rs.getString("dinner"));
         return mapped;
     }
 
@@ -210,5 +277,54 @@ public class MessMenuController {
                 "items", items == null || items.isBlank() ? List.of() : List.of(items.split("\\s*,\\s*")),
                 "timings", timings
         );
+    }
+
+    private void ensureMenuAccess(AuthenticatedUser principal, UUID menuId) {
+        UUID hostelBlockId = jdbcTemplate.query("""
+                SELECT hostel_block_id
+                FROM mess_menu
+                WHERE id = :id
+                """, new MapSqlParameterSource("id", menuId), rs -> rs.next() ? rs.getObject("hostel_block_id", UUID.class) : null);
+
+        if (hostelBlockId == null) {
+            throw new IllegalArgumentException("Menu not found");
+        }
+
+        ensureBlockAccess(principal, hostelBlockId);
+    }
+
+    private void ensureBlockAccess(AuthenticatedUser principal, UUID hostelBlockId) {
+        if (principal == null) {
+            throw new IllegalArgumentException("Authentication required");
+        }
+        if ("Admin".equalsIgnoreCase(principal.getRole())) {
+            return;
+        }
+
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM hostel_blocks
+                WHERE id = :hostelBlockId AND warden_user_id = :wardenId
+                """, new MapSqlParameterSource()
+                .addValue("hostelBlockId", hostelBlockId)
+                .addValue("wardenId", principal.getId()), Integer.class);
+
+        if (count == null || count == 0) {
+            throw new IllegalArgumentException("You do not have access to manage this hostel block");
+        }
+    }
+
+    private UUID parseUuid(Object value, String errorMessage) {
+        if (value == null || value.toString().isBlank()) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return UUID.fromString(value.toString());
+    }
+
+    private String requireString(Object value, String errorMessage) {
+        if (value == null || value.toString().isBlank()) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return value.toString().trim();
     }
 }

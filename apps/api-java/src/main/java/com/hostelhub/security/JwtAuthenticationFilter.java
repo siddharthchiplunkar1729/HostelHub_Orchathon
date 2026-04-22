@@ -44,6 +44,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     UUID userId = jwtService.extractUserId(token);
                     userRepository.findById(userId).ifPresent(user -> {
+                        if (!Boolean.TRUE.equals(user.getIsActive())) {
+                            SecurityContextHolder.clearContext();
+                            return;
+                        }
+
                         AuthenticatedUser principal = new AuthenticatedUser(user);
                         UsernamePasswordAuthenticationToken authentication =
                                 new UsernamePasswordAuthenticationToken(

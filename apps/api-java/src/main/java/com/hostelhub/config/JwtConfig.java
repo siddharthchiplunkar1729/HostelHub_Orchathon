@@ -1,6 +1,9 @@
 package com.hostelhub.config;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import javax.crypto.SecretKey;
@@ -18,14 +21,20 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 public class JwtConfig {
 
     @Bean
-    JwtEncoder jwtEncoder(@Value("${app.security.jwt-secret}") String jwtSecret) {
-        SecretKey secretKey = toSecretKey(jwtSecret);
+    JwtEncoder jwtEncoder(
+            @Value("${app.security.jwt-secret:}") String jwtSecret,
+            @Value("${app.security.jwt-secret-file:}") String jwtSecretFile
+    ) {
+        SecretKey secretKey = toSecretKey(resolveJwtSecret(jwtSecret, jwtSecretFile));
         return new NimbusJwtEncoder(new ImmutableSecret<>(secretKey));
     }
 
     @Bean
-    JwtDecoder jwtDecoder(@Value("${app.security.jwt-secret}") String jwtSecret) {
-        SecretKey secretKey = toSecretKey(jwtSecret);
+    JwtDecoder jwtDecoder(
+            @Value("${app.security.jwt-secret:}") String jwtSecret,
+            @Value("${app.security.jwt-secret-file:}") String jwtSecretFile
+    ) {
+        SecretKey secretKey = toSecretKey(resolveJwtSecret(jwtSecret, jwtSecretFile));
         return NimbusJwtDecoder.withSecretKey(secretKey)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
@@ -34,6 +43,24 @@ public class JwtConfig {
     private SecretKey toSecretKey(String jwtSecret) {
         validateJwtSecret(jwtSecret);
         return new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+    }
+
+    private String resolveJwtSecret(String jwtSecret, String jwtSecretFile) {
+        boolean hasInlineSecret = jwtSecret != null && !jwtSecret.isBlank();
+        boolean hasSecretFile = jwtSecretFile != null && !jwtSecretFile.isBlank();
+
+        if (hasInlineSecret && hasSecretFile) {
+            throw new IllegalStateException("Configure only one of JWT_SECRET or JWT_SECRET_FILE");
+        }
+        if (hasSecretFile) {
+            try {
+                return Files.readString(Path.of(jwtSecretFile), StandardCharsets.UTF_8).trim();
+            } catch (IOException exception) {
+                throw new IllegalStateException("Unable to read JWT secret file", exception);
+            }
+        }
+
+        return jwtSecret;
     }
 
     private void validateJwtSecret(String jwtSecret) {

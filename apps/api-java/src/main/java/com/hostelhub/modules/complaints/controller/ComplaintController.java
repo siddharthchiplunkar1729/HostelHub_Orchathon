@@ -127,6 +127,7 @@ public class ComplaintController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
     public Map<String, Object> updateComplaint(
             @PathVariable UUID id,
             @RequestBody Map<String, Object> body
@@ -158,6 +159,7 @@ public class ComplaintController {
     }
 
     @PostMapping("/{id}/assign")
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
     public Map<String, Object> assignComplaint(
             @PathVariable UUID id,
             @RequestBody Map<String, Object> body
@@ -174,7 +176,7 @@ public class ComplaintController {
                 """;
 
         Map<String, Object> complaint = jdbcTemplate.query(sql, new MapSqlParameterSource()
-                .addValue("assignedTo", body.get("assignedTo"))
+                .addValue("assignedTo", body.getOrDefault("assignedTo", "").toString())
                 .addValue("eta", body.get("eta"))
                 .addValue("id", id), rs -> rs.next() ? mapSimpleComplaint(rs) : null);
 
@@ -190,6 +192,7 @@ public class ComplaintController {
     }
 
     @PostMapping("/{id}/resolve")
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
     public Map<String, Object> resolveComplaint(
             @PathVariable UUID id,
             @RequestBody Map<String, Object> body

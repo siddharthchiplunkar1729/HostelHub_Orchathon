@@ -63,6 +63,22 @@ import { DashboardPayload, DashboardService } from '../../core/services/dashboar
         <p>Loading dashboard data…</p>
       </div>
 
+      <!-- Application Tracking (For Pending Students) -->
+      <section class="card" *ngIf="!loading && data?.student?.enrollmentStatus === 'Pending'" style="margin-bottom: 24px; background: var(--surface-alt); border: 2px dashed var(--border);">
+        <div class="section-header" style="margin-bottom: 12px;">
+          <div>
+            <h2 style="font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.5rem;">⏳</span> Application under review
+            </h2>
+            <p class="muted">Your application for hostel accommodation is currently being processed by the administration.</p>
+          </div>
+        </div>
+        <div class="actions-row">
+          <a class="btn" routerLink="/applications">Track Application Status</a>
+          <a class="btn ghost" routerLink="/search">Browse other hostels</a>
+        </div>
+      </section>
+
       <!-- Complaints + Notices grid -->
       <section class="grid two" *ngIf="!loading">
         <!-- Complaints -->
@@ -122,11 +138,25 @@ import { DashboardPayload, DashboardService } from '../../core/services/dashboar
           <a routerLink="/dashboard/mess-menu">Full week</a>
         </div>
         <div class="cards-grid">
-          <article class="meal-card" *ngFor="let meal of data?.messMenu?.meals">
-            <div class="meal-icon">{{ mealIcon(meal.mealType) }}</div>
-            <strong>{{ meal.mealType }}</strong>
-            <div class="muted" style="font-size:0.8rem">{{ meal.timings }}</div>
-            <p style="margin:8px 0 0;font-size:0.875rem">{{ meal.items.join(', ') || 'Menu pending' }}</p>
+          <article class="meal-card">
+            <div class="meal-icon">🌅</div>
+            <strong>Breakfast</strong>
+            <p style="margin:6px 0 0;font-size:0.875rem">{{ data?.messMenu?.breakfast || 'Not posted' }}</p>
+          </article>
+          <article class="meal-card">
+            <div class="meal-icon">☀️</div>
+            <strong>Lunch</strong>
+            <p style="margin:6px 0 0;font-size:0.875rem">{{ data?.messMenu?.lunch || 'Not posted' }}</p>
+          </article>
+          <article class="meal-card">
+            <div class="meal-icon">🍎</div>
+            <strong>Snacks</strong>
+            <p style="margin:6px 0 0;font-size:0.875rem">{{ data?.messMenu?.snacks || 'Not posted' }}</p>
+          </article>
+          <article class="meal-card">
+            <div class="meal-icon">🌙</div>
+            <strong>Dinner</strong>
+            <p style="margin:6px 0 0;font-size:0.875rem">{{ data?.messMenu?.dinner || 'Not posted' }}</p>
           </article>
         </div>
       </section>
@@ -160,11 +190,6 @@ export class DashboardPageComponent {
   data: DashboardPayload | null = null;
   loading = false;
   message = '';
-
-  mealIcon(type: string) {
-    const icons: Record<string, string> = { Breakfast: '🌅', Lunch: '☀️', Dinner: '🌙', Snacks: '🍎' };
-    return icons[type] || '🍽️';
-  }
 
   constructor() {
     if (this.isLoggedIn) { this.load(); }

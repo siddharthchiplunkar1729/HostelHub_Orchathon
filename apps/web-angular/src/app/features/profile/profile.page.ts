@@ -3,7 +3,8 @@ import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService, AuthStudent, AuthUser } from '../../core/services/auth.service';
 import { StudentDetail, StudentService } from '../../core/services/student.service';
-
+import { WardenService } from '../../core/services/warden.service';
+import { HostelBlockSummary } from '../../core/services/hostel.service';
 @Component({
   standalone: true,
   imports: [CommonModule, RouterLink],
@@ -83,6 +84,26 @@ import { StudentDetail, StudentService } from '../../core/services/student.servi
         </article>
       </section>
 
+      <!-- Warden Managed Blocks -->
+      <section class="card" *ngIf="user.role === 'Warden' || user.role === 'Admin'" style="margin-top: 24px;">
+        <h2 style="margin-bottom:16px">Managed Hostel Blocks</h2>
+        <div class="cards-grid" *ngIf="managedBlocks.length; else noBlocks">
+          <article class="stat-card" *ngFor="let block of managedBlocks">
+            <strong>{{ block.blockName }}</strong>
+            <div class="muted">{{ block.location }} • {{ block.type }}</div>
+            <div style="margin-top: 8px;">
+              <span class="badge" style="margin-right: 8px;">{{ block.availableRooms }} available</span>
+              <span class="badge secondary">{{ block.totalRooms }} total rooms</span>
+            </div>
+          </article>
+        </div>
+        <ng-template #noBlocks>
+          <div class="empty-state" style="padding: 24px;">
+            No blocks managed currently.
+          </div>
+        </ng-template>
+      </section>
+
       <p class="muted" *ngIf="message" style="text-align:center">{{ message }}</p>
     </div>
 
@@ -114,10 +135,12 @@ import { StudentDetail, StudentService } from '../../core/services/student.servi
 export class ProfilePageComponent {
   private readonly authService = inject(AuthService);
   private readonly studentService = inject(StudentService);
+  private readonly wardenService = inject(WardenService);
 
   user: AuthUser | null = this.authService.currentUser();
   student: AuthStudent | null = this.authService.currentStudent();
   studentDetail: StudentDetail | null = null;
+  managedBlocks: HostelBlockSummary[] = [];
   message = '';
 
   get initials() {
@@ -129,6 +152,13 @@ export class ProfilePageComponent {
       this.studentService.getStudentById(this.student.id).subscribe({
         next: (d)  => { this.studentDetail = d; },
         error: ()  => { this.message = 'Detailed student info could not be loaded.'; }
+      });
+    }
+
+    if (this.user?.role === 'Warden' || this.user?.role === 'Admin') {
+      this.wardenService.getManagedBlocks().subscribe({
+        next: (blocks) => { this.managedBlocks = blocks; },
+        error: () => {}
       });
     }
   }

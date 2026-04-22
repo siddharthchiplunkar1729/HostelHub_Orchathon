@@ -1,5 +1,8 @@
 package com.hostelhub.modules.notices.controller;
 
+import com.hostelhub.security.AuthenticatedUser;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -9,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,33 +62,19 @@ public class NoticeController {
                  LIMIT :limit
                 """);
 
-        return jdbcTemplate.query(sql.toString(), params, (rs, rowNum) -> {
-            Map<String, Object> hostelInfo = new LinkedHashMap<>();
-            hostelInfo.put("id", rs.getObject("hostel_block_id", UUID.class));
-            hostelInfo.put("name", rs.getString("block_name"));
-
-            Map<String, Object> from = new LinkedHashMap<>();
-            from.put("role", "Administrative Officer");
-            from.put("name", "Hostel Hub System");
-
-            Map<String, Object> mapped = new LinkedHashMap<>();
-            mapped.put("_id", rs.getObject("id", UUID.class));
-            mapped.put("title", rs.getString("title"));
-            mapped.put("content", rs.getString("content"));
-            mapped.put("priority", rs.getString("priority"));
-            mapped.put("createdAt", rs.getTimestamp("created_at"));
-            mapped.put("expiresAt", rs.getTimestamp("expires_at"));
-            mapped.put("hostelInfo", hostelInfo);
-            mapped.put("type", "Urgent".equals(rs.getString("priority")) ? "Emergency" : "General");
-            mapped.put("from", from);
-            return mapped;
-        });
+        return jdbcTemplate.query(sql.toString(), params, (rs, rowNum) -> mapNoticeRow(rs));
     }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, Object> createNotice(@RequestBody Map<String, Object> body) {
+    public Map<String, Object> createNotice(
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal AuthenticatedUser principal
+    ) {
+        UUID hostelBlockId = parseUuid(body.get("hostelBlockId"), "Hostel block is required");
+        ensureBlockAccess(principal, hostelBlockId);
+
         String sql = """
                 INSERT INTO notices (hostel_block_id, title, content, priority, expires_at, updated_at)
                 VALUES (:hostelBlockId, :title, :content, :priority, :expiresAt, NOW())
@@ -92,7 +82,7 @@ public class NoticeController {
                 """;
 
         return jdbcTemplate.query(sql, new MapSqlParameterSource()
-                .addValue("hostelBlockId", body.get("hostelBlockId"))
+                .addValue("hostelBlockId", hostelBlockId)
                 .addValue("title", body.get("title"))
                 .addValue("content", body.get("content"))
                 .addValue("priority", body.getOrDefault("priority", "Normal"))
@@ -105,17 +95,25 @@ public class NoticeController {
     }
 
     @PutMapping("/{id}")
-    public Map<String, Object> updateNotice(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
+    public Map<String, Object> updateNotice(
+            @PathVariable UUID id,
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal AuthenticatedUser principal
+    ) {
+        ensureNoticeAccess(principal, id);
+
         List<String> assignments = new ArrayList<>();
         MapSqlParameterSource params = new MapSqlParameterSource().addValue("id", id);
 
         for (Map.Entry<String, Object> entry : body.entrySet()) {
-            if (List.of("_id", "id", "created_at").contains(entry.getKey())) {
+            if (List.of("_id", "id", "created_at", "createdAt").contains(entry.getKey())) {
                 continue;
             }
-            String column = entry.getKey().replaceAll("([A-Z])", "_$1").toLowerCase();
-            assignments.add(column + " = :" + entry.getKey());
-            params.addValue(entry.getKey(), entry.getValue());
+            String key = entry.getKey();
+            String column = key.replaceAll("([A-Z])", "_$1").toLowerCase();
+            assignments.add(column + " = :" + key);
+            params.addValue(key, entry.getValue());
         }
 
         if (assignments.isEmpty()) {
@@ -137,7 +135,13 @@ public class NoticeController {
     }
 
     @DeleteMapping("/{id}")
-    public Map<String, Object> deleteNotice(@PathVariable UUID id) {
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
+    public Map<String, Object> deleteNotice(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal AuthenticatedUser principal
+    ) {
+        ensureNoticeAccess(principal, id);
+
         Integer count = jdbcTemplate.update(
                 "DELETE FROM notices WHERE id = :id",
                 new MapSqlParameterSource("id", id)
@@ -172,7 +176,13 @@ public class NoticeController {
     }
 
     @GetMapping("/{id}/stats")
-    public Map<String, Object> getNoticeStats(@PathVariable UUID id) {
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
+    public Map<String, Object> getNoticeStats(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal AuthenticatedUser principal
+    ) {
+        ensureNoticeAccess(principal, id);
+
         List<Map<String, Object>> acknowledgements = jdbcTemplate.query("""
                 SELECT na.acknowledged_at, u.name, u.email, s.photo
                 FROM notice_acknowledgements na
@@ -197,15 +207,86 @@ public class NoticeController {
         );
     }
 
-    private Map<String, Object> mapSimpleNotice(java.sql.ResultSet rs) throws java.sql.SQLException {
+    private Map<String, Object> mapNoticeRow(ResultSet rs) throws SQLException {
+        Map<String, Object> hostelInfo = new LinkedHashMap<>();
+        hostelInfo.put("id", rs.getObject("hostel_block_id", UUID.class));
+        hostelInfo.put("name", rs.getString("block_name"));
+
+        Map<String, Object> from = new LinkedHashMap<>();
+        from.put("role", "Administrative Officer");
+        from.put("name", "Hostel Hub System");
+
+        Map<String, Object> mapped = new LinkedHashMap<>();
+        mapped.put("_id", rs.getObject("id", UUID.class));
+        mapped.put("title", rs.getString("title"));
+        mapped.put("content", rs.getString("content"));
+        mapped.put("priority", rs.getString("priority"));
+        mapped.put("createdAt", rs.getTimestamp("created_at"));
+        mapped.put("expiresAt", rs.getTimestamp("expires_at"));
+        mapped.put("updatedAt", rs.getTimestamp("updated_at"));
+        mapped.put("hostelBlockId", rs.getObject("hostel_block_id", UUID.class));
+        mapped.put("hostelName", rs.getString("block_name"));
+        mapped.put("hostelInfo", hostelInfo);
+        mapped.put("type", "Urgent".equals(rs.getString("priority")) ? "Emergency" : "General");
+        mapped.put("from", from);
+        return mapped;
+    }
+
+    private Map<String, Object> mapSimpleNotice(ResultSet rs) throws SQLException {
         Map<String, Object> mapped = new LinkedHashMap<>();
         mapped.put("_id", rs.getObject("id", UUID.class));
         mapped.put("id", rs.getObject("id", UUID.class));
         mapped.put("hostel_block_id", rs.getObject("hostel_block_id", UUID.class));
+        mapped.put("hostelBlockId", rs.getObject("hostel_block_id", UUID.class));
         mapped.put("title", rs.getString("title"));
         mapped.put("content", rs.getString("content"));
         mapped.put("priority", rs.getString("priority"));
         mapped.put("expires_at", rs.getTimestamp("expires_at"));
+        mapped.put("expiresAt", rs.getTimestamp("expires_at"));
+        mapped.put("updated_at", rs.getTimestamp("updated_at"));
+        mapped.put("updatedAt", rs.getTimestamp("updated_at"));
         return mapped;
+    }
+
+    private void ensureNoticeAccess(AuthenticatedUser principal, UUID noticeId) {
+        UUID hostelBlockId = jdbcTemplate.query("""
+                SELECT hostel_block_id
+                FROM notices
+                WHERE id = :id
+                """, new MapSqlParameterSource("id", noticeId), rs -> rs.next() ? rs.getObject("hostel_block_id", UUID.class) : null);
+
+        if (hostelBlockId == null) {
+            throw new IllegalArgumentException("Notice not found");
+        }
+
+        ensureBlockAccess(principal, hostelBlockId);
+    }
+
+    private void ensureBlockAccess(AuthenticatedUser principal, UUID hostelBlockId) {
+        if (principal == null) {
+            throw new IllegalArgumentException("Authentication required");
+        }
+        if ("Admin".equalsIgnoreCase(principal.getRole())) {
+            return;
+        }
+
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM hostel_blocks
+                WHERE id = :hostelBlockId AND warden_user_id = :wardenId
+                """, new MapSqlParameterSource()
+                .addValue("hostelBlockId", hostelBlockId)
+                .addValue("wardenId", principal.getId()), Integer.class);
+
+        if (count == null || count == 0) {
+            throw new IllegalArgumentException("You do not have access to manage this hostel block");
+        }
+    }
+
+    private UUID parseUuid(Object value, String errorMessage) {
+        if (value == null || value.toString().isBlank()) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return UUID.fromString(value.toString());
     }
 }

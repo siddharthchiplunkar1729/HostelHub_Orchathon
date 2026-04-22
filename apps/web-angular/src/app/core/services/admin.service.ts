@@ -17,6 +17,15 @@ export interface AdminStats {
   totalStudents: number;
 }
 
+export interface AdminUserSummary {
+  _id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  createdAt: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly http = inject(HttpClient);
@@ -44,5 +53,13 @@ export class AdminService {
 
   getSystemReports(): Observable<any> {
     return this.http.get<any>(`${API_BASE_URL}/admin/reports`);
+  }
+
+  getUsers(): Observable<any[]> {
+    return this.http.get<any[]>(`${API_BASE_URL}/admin/users`);
+  }
+
+  updateUserRole(userId: string, role: string): Observable<any> {
+    return this.http.put<any>(`${API_BASE_URL}/admin/users/${userId}/role`, { role });
   }
 }

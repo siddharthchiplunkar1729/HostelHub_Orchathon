@@ -1,5 +1,8 @@
 package com.hostelhub.modules.hostel.controller;
 
+import com.hostelhub.security.AuthenticatedUser;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -8,6 +11,8 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -66,43 +71,74 @@ public class HostelBlockController {
         }
 
         sql.append(" ORDER BY hb.rating DESC");
-
         return jdbcTemplate.query(sql.toString(), params, (rs, rowNum) -> mapHostelBlockSummary(rs));
     }
 
+    @GetMapping("/managed")
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
+    public List<Map<String, Object>> getManagedBlocks(@AuthenticationPrincipal AuthenticatedUser principal) {
+        String sql = """
+                SELECT hb.*, u.name AS warden_name, u.phone AS warden_phone
+                FROM hostel_blocks hb
+                LEFT JOIN users u ON hb.warden_user_id = u.id
+                WHERE (:isAdmin = true OR hb.warden_user_id = :wardenId)
+                ORDER BY hb.created_at DESC
+                """;
+
+        return jdbcTemplate.query(sql, new MapSqlParameterSource()
+                .addValue("isAdmin", isAdmin(principal))
+                .addValue("wardenId", principal.getId()), (rs, rowNum) -> mapHostelBlockSummary(rs));
+    }
+
     @PostMapping
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, Object> createBlock(@RequestBody Map<String, Object> body) {
+    public Map<String, Object> createBlock(
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal AuthenticatedUser principal
+    ) {
+        UUID wardenId = resolveOwnerId(principal, body.get("wardenId"));
+        String[] images = toStringArray(body.get("images"));
+        String[] facilities = toStringArray(body.get("facilities"));
+
+        int totalRooms = parseRequiredInt(body.get("totalRooms"), "Total rooms is required");
+        int availableRooms = body.get("availableRooms") == null
+                ? totalRooms
+                : parseRequiredInt(body.get("availableRooms"), "Available rooms must be a valid number");
+        int occupiedRooms = body.get("occupiedRooms") == null
+                ? Math.max(totalRooms - availableRooms, 0)
+                : parseRequiredInt(body.get("occupiedRooms"), "Occupied rooms must be a valid number");
+
         String sql = """
                 INSERT INTO hostel_blocks
-                (block_name, type, description, total_rooms, available_rooms, location, images, facilities, warden_user_id)
-                VALUES (:blockName, :type, :description, :totalRooms, :availableRooms, :location, CAST(:images AS text[]), CAST(:facilities AS text[]), :wardenId)
+                (block_name, type, description, total_rooms, available_rooms, occupied_rooms, location, images, facilities,
+                 warden_user_id, virtual_tour_url, category, approval_status, updated_at)
+                VALUES (:blockName, :type, :description, :totalRooms, :availableRooms, :occupiedRooms, :location,
+                        CAST(:images AS text[]), CAST(:facilities AS text[]), :wardenId, :virtualTourUrl, :category,
+                        :approvalStatus, NOW())
                 RETURNING *
                 """;
 
-        String[] images = body.get("images") instanceof List<?> list ? list.stream().map(String::valueOf).toArray(String[]::new) : new String[0];
-        String[] facilities = body.get("facilities") instanceof List<?> list ? list.stream().map(String::valueOf).toArray(String[]::new) : new String[0];
-
         return jdbcTemplate.query(sql, new MapSqlParameterSource()
-                .addValue("blockName", body.get("blockName"))
-                .addValue("type", body.get("type"))
+                .addValue("blockName", requireString(body.get("blockName"), "Block name is required"))
+                .addValue("type", requireString(body.get("type"), "Hostel type is required"))
                 .addValue("description", body.get("description"))
-                .addValue("totalRooms", body.get("totalRooms"))
-                .addValue("availableRooms", body.get("availableRooms"))
-                .addValue("location", body.get("location"))
+                .addValue("totalRooms", totalRooms)
+                .addValue("availableRooms", availableRooms)
+                .addValue("occupiedRooms", occupiedRooms)
+                .addValue("location", requireString(body.get("location"), "Location is required"))
                 .addValue("images", toArrayLiteral(images))
                 .addValue("facilities", toArrayLiteral(facilities))
-                .addValue("wardenId", body.get("wardenId")), rs -> {
-            if (!rs.next()) {
-                throw new IllegalArgumentException("Failed to create hostel block");
-            }
-            Map<String, Object> mapped = new LinkedHashMap<>();
-            mapped.put("_id", rs.getObject("id", UUID.class));
-            mapped.put("blockName", rs.getString("block_name"));
-            mapped.put("type", rs.getString("type"));
-            mapped.put("description", rs.getString("description"));
-            return mapped;
-        });
+                .addValue("wardenId", wardenId)
+                .addValue("virtualTourUrl", body.get("virtualTourUrl"))
+                .addValue("category", body.getOrDefault("category", "Standard"))
+                .addValue("approvalStatus", isAdmin(principal) ? body.getOrDefault("approvalStatus", "Approved") : "Pending"),
+                rs -> {
+                    if (!rs.next()) {
+                        throw new IllegalArgumentException("Failed to create hostel block");
+                    }
+                    return mapSimpleBlock(rs);
+                });
     }
 
     @GetMapping("/{id}")
@@ -159,9 +195,10 @@ public class HostelBlockController {
             mapped.put("location", rs.getString("location"));
             mapped.put("rating", isApproved ? rs.getBigDecimal("rating") : 0);
             mapped.put("virtualTourUrl", rs.getString("virtual_tour_url"));
-            mapped.put("images", rs.getArray("images") == null ? List.of() : List.of((String[]) rs.getArray("images").getArray()));
-            mapped.put("facilities", rs.getArray("facilities") == null ? List.of() : List.of((String[]) rs.getArray("facilities").getArray()));
+            mapped.put("images", toList(rs, "images"));
+            mapped.put("facilities", toList(rs, "facilities"));
             mapped.put("approvalStatus", rs.getString("approval_status") != null ? rs.getString("approval_status") : "Approved");
+            mapped.put("category", rs.getString("category"));
             mapped.put("wardenInfo", Map.of(
                     "name", rs.getString("warden_name") != null ? rs.getString("warden_name") : "N/A",
                     "phone", rs.getString("warden_phone") != null ? rs.getString("warden_phone") : "N/A",
@@ -181,43 +218,69 @@ public class HostelBlockController {
     }
 
     @PutMapping("/{id}")
-    public Map<String, Object> updateBlock(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
+    public Map<String, Object> updateBlock(
+            @PathVariable UUID id,
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal AuthenticatedUser principal
+    ) {
+        ensureBlockAccess(principal, id);
+
         String sql = """
                 UPDATE hostel_blocks
                 SET block_name = COALESCE(:blockName, block_name),
+                    type = COALESCE(:type, type),
                     description = COALESCE(:description, description),
+                    total_rooms = COALESCE(:totalRooms, total_rooms),
+                    available_rooms = COALESCE(:availableRooms, available_rooms),
+                    occupied_rooms = COALESCE(:occupiedRooms, occupied_rooms),
+                    location = COALESCE(:location, location),
+                    virtual_tour_url = COALESCE(:virtualTourUrl, virtual_tour_url),
+                    category = COALESCE(:category, category),
+                    images = COALESCE(CAST(:images AS text[]), images),
+                    facilities = COALESCE(CAST(:facilities AS text[]), facilities),
                     updated_at = NOW()
                 WHERE id = :id
                 RETURNING *
                 """;
 
-        List<Map<String, Object>> rows = jdbcTemplate.query(sql, new MapSqlParameterSource()
+        Map<String, Object> block = jdbcTemplate.query(sql, new MapSqlParameterSource()
+                .addValue("id", id)
                 .addValue("blockName", body.get("blockName"))
+                .addValue("type", body.get("type"))
                 .addValue("description", body.get("description"))
-                .addValue("id", id), (rs, rowNum) -> {
-            Map<String, Object> mapped = new LinkedHashMap<>();
-            mapped.put("_id", rs.getObject("id", UUID.class));
-            mapped.put("blockName", rs.getString("block_name"));
-            mapped.put("description", rs.getString("description"));
-            return mapped;
-        });
+                .addValue("totalRooms", parseOptionalInt(body.get("totalRooms")))
+                .addValue("availableRooms", parseOptionalInt(body.get("availableRooms")))
+                .addValue("occupiedRooms", parseOptionalInt(body.get("occupiedRooms")))
+                .addValue("location", body.get("location"))
+                .addValue("virtualTourUrl", body.get("virtualTourUrl"))
+                .addValue("category", body.get("category"))
+                .addValue("images", body.containsKey("images") ? toArrayLiteral(toStringArray(body.get("images"))) : null)
+                .addValue("facilities", body.containsKey("facilities") ? toArrayLiteral(toStringArray(body.get("facilities"))) : null),
+                rs -> rs.next() ? mapSimpleBlock(rs) : null);
 
-        if (rows.isEmpty()) {
-            throw new IllegalArgumentException("Not found");
+        if (block == null) {
+            throw new IllegalArgumentException("Hostel block not found");
         }
-        return rows.get(0);
+        return block;
     }
 
     @DeleteMapping("/{id}")
-    public Map<String, Object> deleteBlock(@PathVariable UUID id) {
+    @PreAuthorize("hasAnyRole('WARDEN','ADMIN')")
+    public Map<String, Object> deleteBlock(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal AuthenticatedUser principal
+    ) {
+        ensureBlockAccess(principal, id);
+
         Integer count = jdbcTemplate.update("DELETE FROM hostel_blocks WHERE id = :id", new MapSqlParameterSource("id", id));
         if (count == null || count == 0) {
-            throw new IllegalArgumentException("Not found");
+            throw new IllegalArgumentException("Hostel block not found");
         }
         return Map.of("success", true, "message", "Block deleted");
     }
 
-    private Map<String, Object> mapHostelBlockSummary(java.sql.ResultSet rs) throws java.sql.SQLException {
+    private Map<String, Object> mapHostelBlockSummary(ResultSet rs) throws SQLException {
         Map<String, Object> mapped = new LinkedHashMap<>();
         mapped.put("_id", rs.getObject("id", UUID.class));
         mapped.put("blockName", rs.getString("block_name"));
@@ -229,13 +292,84 @@ public class HostelBlockController {
         mapped.put("location", rs.getString("location"));
         mapped.put("rating", rs.getBigDecimal("rating"));
         mapped.put("virtualTourUrl", rs.getString("virtual_tour_url"));
-        mapped.put("images", rs.getArray("images") == null ? List.of() : List.of((String[]) rs.getArray("images").getArray()));
-        mapped.put("facilities", rs.getArray("facilities") == null ? List.of() : List.of((String[]) rs.getArray("facilities").getArray()));
+        mapped.put("images", toList(rs, "images"));
+        mapped.put("facilities", toList(rs, "facilities"));
+        mapped.put("category", rs.getString("category"));
+        mapped.put("approvalStatus", rs.getString("approval_status") != null ? rs.getString("approval_status") : "Approved");
         mapped.put("wardenInfo", Map.of(
                 "name", rs.getString("warden_name") != null ? rs.getString("warden_name") : "Assigned Warden",
                 "phone", rs.getString("warden_phone") != null ? rs.getString("warden_phone") : "N/A"
         ));
         return mapped;
+    }
+
+    private Map<String, Object> mapSimpleBlock(ResultSet rs) throws SQLException {
+        Map<String, Object> mapped = new LinkedHashMap<>();
+        mapped.put("_id", rs.getObject("id", UUID.class));
+        mapped.put("id", rs.getObject("id", UUID.class));
+        mapped.put("blockName", rs.getString("block_name"));
+        mapped.put("type", rs.getString("type"));
+        mapped.put("description", rs.getString("description"));
+        mapped.put("totalRooms", rs.getInt("total_rooms"));
+        mapped.put("availableRooms", rs.getInt("available_rooms"));
+        mapped.put("occupiedRooms", rs.getInt("occupied_rooms"));
+        mapped.put("location", rs.getString("location"));
+        mapped.put("virtualTourUrl", rs.getString("virtual_tour_url"));
+        mapped.put("images", toList(rs, "images"));
+        mapped.put("facilities", toList(rs, "facilities"));
+        mapped.put("category", rs.getString("category"));
+        mapped.put("approvalStatus", rs.getString("approval_status"));
+        return mapped;
+    }
+
+    private List<String> toList(ResultSet rs, String column) throws SQLException {
+        return rs.getArray(column) == null ? List.of() : List.of((String[]) rs.getArray(column).getArray());
+    }
+
+    private void ensureBlockAccess(AuthenticatedUser principal, UUID hostelBlockId) {
+        if (principal == null) {
+            throw new IllegalArgumentException("Authentication required");
+        }
+        if (isAdmin(principal)) {
+            return;
+        }
+
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM hostel_blocks
+                WHERE id = :hostelBlockId AND warden_user_id = :wardenId
+                """, new MapSqlParameterSource()
+                .addValue("hostelBlockId", hostelBlockId)
+                .addValue("wardenId", principal.getId()), Integer.class);
+
+        if (count == null || count == 0) {
+            throw new IllegalArgumentException("You do not have access to manage this hostel block");
+        }
+    }
+
+    private UUID resolveOwnerId(AuthenticatedUser principal, Object requestedWardenId) {
+        if (!isAdmin(principal)) {
+            return principal.getId();
+        }
+        if (requestedWardenId == null || requestedWardenId.toString().isBlank()) {
+            return null;
+        }
+        return UUID.fromString(requestedWardenId.toString());
+    }
+
+    private boolean isAdmin(AuthenticatedUser principal) {
+        return principal != null && "Admin".equalsIgnoreCase(principal.getRole());
+    }
+
+    private String[] toStringArray(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return new String[0];
+        }
+        return list.stream()
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(item -> !item.isBlank())
+                .toArray(String[]::new);
     }
 
     private String toArrayLiteral(String[] values) {
@@ -251,5 +385,27 @@ public class HostelBlockController {
         }
         builder.append("}");
         return builder.toString();
+    }
+
+    private String requireString(Object value, String errorMessage) {
+        if (value == null || value.toString().isBlank()) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return value.toString().trim();
+    }
+
+    private int parseRequiredInt(Object value, String errorMessage) {
+        Integer parsed = parseOptionalInt(value);
+        if (parsed == null) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+        return parsed;
+    }
+
+    private Integer parseOptionalInt(Object value) {
+        if (value == null || value.toString().isBlank()) {
+            return null;
+        }
+        return Integer.parseInt(value.toString());
     }
 }
