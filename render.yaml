@@ -4,7 +4,6 @@ services:
     env: docker
     dockerfilePath: docker/api-java.Dockerfile
     plan: free
-    healthCheckPath: /actuator/health
     envVars:
       - key: DB_HOST
         fromDatabase:
