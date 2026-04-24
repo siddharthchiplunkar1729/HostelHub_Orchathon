@@ -42,4 +42,7 @@ case "$(printf '%s' "${JWT_SECRET}" | tr '[:upper:]' '[:lower:]')" in
     ;;
 esac
 
+# Render injects $PORT — make Spring Boot use it
+export APP_PORT="${PORT:-${APP_PORT:-8080}}"
+
 exec sh -c "java ${JAVA_OPTS:-} -jar /app/app.jar"

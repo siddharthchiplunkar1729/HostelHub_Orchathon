@@ -1,22 +1,21 @@
 services:
-  - type: pserv
+  # ── Java API (web service so Render assigns it a public URL) ──────────────
+  - type: web
     name: api-java
     env: docker
     dockerfilePath: docker/api-java.Dockerfile
+    dockerContext: .
     plan: free
+    healthCheckPath: /actuator/health
     envVars:
-      - key: DB_HOST
+      - key: PORT
+        value: 10000
+      - key: APP_PORT
+        value: 10000
+      - key: DATABASE_URL
         fromDatabase:
           name: hostelhub-db
-          property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: hostelhub-db
-          property: port
-      - key: DB_NAME
-        fromDatabase:
-          name: hostelhub-db
-          property: database
+          property: connectionString
       - key: DB_USERNAME
         fromDatabase:
           name: hostelhub-db
@@ -27,22 +26,24 @@ services:
           property: password
       - key: JWT_SECRET
         generateValue: true
-      - key: APP_PORT
-        value: 8080
       - key: CORS_ALLOWED_ORIGINS
         value: "*"
       - key: FRONTEND_URL
         value: "*"
 
+  # ── Angular Frontend ──────────────────────────────────────────────────────
   - type: web
     name: hostelhub-web
     env: docker
     dockerfilePath: docker/web-angular.Dockerfile
+    dockerContext: .
     plan: free
     healthCheckPath: /
     envVars:
       - key: PORT
-        value: 80
+        value: 10000
+      - key: API_URL
+        value: "https://api-java.onrender.com"
 
 databases:
   - name: hostelhub-db

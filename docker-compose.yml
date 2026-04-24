@@ -51,6 +51,9 @@ services:
       api-java:
         condition: service_healthy
     restart: unless-stopped
+    environment:
+      PORT: "80"
+      API_URL: "http://api-java:8080"
     ports:
       - "${WEB_PORT:-4200}:80"
     healthcheck:
