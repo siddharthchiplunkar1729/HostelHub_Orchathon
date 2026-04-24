@@ -42,6 +42,30 @@ case "$(printf '%s' "${JWT_SECRET}" | tr '[:upper:]' '[:lower:]')" in
     ;;
 esac
 
+# ── Convert Render's postgres:// URL to JDBC format ──────────────────────────
+if [ -n "${DATABASE_URL:-}" ]; then
+  case "$DATABASE_URL" in
+    postgres://*|postgresql://*)
+      # Render gives: postgres://user:password@host:port/database
+      # Spring needs: jdbc:postgresql://host:port/database (user/pass separate)
+      URL_NO_SCHEME="${DATABASE_URL#*://}"
+      CREDENTIALS="${URL_NO_SCHEME%%@*}"
+      HOST_PORT_DB="${URL_NO_SCHEME#*@}"
+
+      # Extract and export username/password if present in URL
+      case "$CREDENTIALS" in
+        *:*)
+          export DB_USERNAME="${CREDENTIALS%%:*}"
+          export DB_PASSWORD="${CREDENTIALS#*:}"
+          ;;
+      esac
+
+      export DATABASE_URL="jdbc:postgresql://${HOST_PORT_DB}?sslmode=require"
+      echo "Converted DATABASE_URL to JDBC format: jdbc:postgresql://${HOST_PORT_DB%%\?*}?sslmode=require"
+      ;;
+  esac
+fi
+
 # Render injects $PORT — make Spring Boot use it
 export APP_PORT="${PORT:-${APP_PORT:-8080}}"
 
