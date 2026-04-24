@@ -85,7 +85,14 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(origin -> !origin.isBlank())
                 .collect(Collectors.toList());
-        configuration.setAllowedOrigins(allowedOrigins);
+        // Use allowedOriginPatterns so wildcard "*" works alongside allowCredentials(true).
+        // setAllowedOrigins(["*"]) + allowCredentials is rejected by the CORS spec and
+        // causes Spring to throw at runtime when the value is literally "*".
+        if (allowedOrigins.size() == 1 && "*".equals(allowedOrigins.get(0))) {
+            configuration.setAllowedOriginPatterns(List.of("*"));
+        } else {
+            configuration.setAllowedOrigins(allowedOrigins);
+        }
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

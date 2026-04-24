@@ -27,9 +27,11 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
-        value: "*"
+        value: "https://hostelhub-web.onrender.com"
       - key: FRONTEND_URL
-        value: "*"
+        value: "https://hostelhub-web.onrender.com"
+      - key: EXPOSE_DEV_RESET_URL
+        value: "false"
 
   # ── Angular Frontend ──────────────────────────────────────────────────────
   - type: web
