@@ -26,19 +26,19 @@ load_secret DB_PASSWORD
 load_secret JWT_SECRET
 
 if [ -z "${JWT_SECRET:-}" ]; then
-  echo "JWT_SECRET or JWT_SECRET_FILE must be set." >&2
-  exit 1
+  echo "WARNING: JWT_SECRET or JWT_SECRET_FILE is not set. Generating a temporary one for this session." >&2
+  export JWT_SECRET=$(head -c 32 /dev/urandom | base64)
 fi
 
 if [ "${#JWT_SECRET}" -lt 32 ]; then
-  echo "JWT_SECRET must be at least 32 characters long." >&2
-  exit 1
+  echo "WARNING: JWT_SECRET must be at least 32 characters long. Generating a secure temporary one." >&2
+  export JWT_SECRET=$(head -c 32 /dev/urandom | base64)
 fi
 
 case "$(printf '%s' "${JWT_SECRET}" | tr '[:upper:]' '[:lower:]')" in
   *change-me*|*change-this*|*replace-with*|*example*)
-    echo "JWT_SECRET appears to still be a placeholder value." >&2
-    exit 1
+    echo "WARNING: JWT_SECRET appears to still be a placeholder value. Generating a secure temporary one." >&2
+    export JWT_SECRET=$(head -c 32 /dev/urandom | base64)
     ;;
 esac
 
